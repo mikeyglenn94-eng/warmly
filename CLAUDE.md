@@ -15,30 +15,38 @@ pnpm monorepo. Workspace globs in `pnpm-workspace.yaml`:
 - `artifacts/*` — runnable apps
 - `lib/*` — shared libraries
 
-Currently the repo is scaffolded but empty. Planned packages:
-
 ### Apps (`artifacts/`)
-- **`api-server`** — Express + TypeScript backend. JWT auth, REST endpoints for the dashboard and the embed widget, lead capture and storage.
-- **`dashboard`** — Vite + React + TypeScript SPA. Where businesses configure their widget (form fields, WhatsApp number, branding) and review captured leads.
-- **`embed-widget`** — Standalone JS bundle, distributed as a single file customers drop onto their site (`<script src=".../warmly.js">`). Renders the chat-launch button and pre-fill form, posts captured data to `api-server`, then redirects to the WhatsApp click-to-chat URL.
+- **`api-server`** *(scaffolded — health-check only)* — Express 5 + TypeScript backend, run via `tsx`. Currently only `GET /health → { status: "ok" }`; imports `@warmly/db` and `@warmly/api-spec` to keep the workspace wiring exercised. Auth, endpoints, and lead capture not yet implemented.
+- **`dashboard`** *(planned)* — Vite + React + TypeScript SPA. Where businesses configure their widget and review captured leads.
+- **`embed-widget`** *(planned)* — Standalone JS bundle, distributed as a single file customers drop onto their site (`<script src=".../warmly.js" data-widget-id="…">`). Renders the chat-launch button and pre-fill form, posts captured data to `api-server`, then redirects to the WhatsApp click-to-chat URL. Must have no runtime peer-dependencies on the host page.
 
 ### Shared libs (`lib/`)
-- **`api-spec`** — OpenAPI source of truth + codegen config (planned, follows the same Orval pattern used in the sibling `phil` repo).
-- **`db`** — Drizzle ORM schema + pg client.
-- **`auth`** (possibly) — shared JWT helpers used by `api-server` and any other server-side surface.
+- **`api-spec`** *(scaffolded)* — Zod schemas for the widget config: `AnswerSchema`, `QuestionSchema`, `WidgetConfigSchema` (1–5 questions, 2–4 answers per question, hex colour, button position enum, permissive E.164 WhatsApp number). Source of truth for shared types.
+- **`db`** *(scaffolded)* — Drizzle ORM with `postgres-js`. `users` and `widgets` tables. `widgets.questions` is jsonb typed via `@warmly/api-spec`'s `Question[]`. Exports `createDb(url)` for the runtime client and `schema` for the Drizzle namespace.
+- **`auth`** *(planned, possibly)* — shared JWT helpers if/when `api-server` grows a sibling that needs them.
 
 ### Stack at a glance
-- **Database:** PostgreSQL with Drizzle ORM.
-- **Auth:** JWT-based, 7-day tokens.
+- **Database:** PostgreSQL with Drizzle ORM (`postgres-js` driver).
+- **Auth:** JWT-based, 7-day tokens (planned).
 - **Package manager:** pnpm. The root `preinstall` guard rejects npm and yarn.
+- **TypeScript:** Project references via `tsc --build` for libs; `customConditions: ["workspace"]` lets consumers import source TS directly from sibling packages, no build step required.
 
 ## Commands
 
-The repo is empty beyond the scaffold — there is nothing to build or run yet. Once apps land:
+From the repo root:
 
-- `pnpm install` from repo root.
-- `pnpm typecheck` runs typecheck across all packages with a `typecheck` script.
-- `pnpm build` runs typecheck then `build` across all packages.
+- `pnpm install` — install all workspace deps and link workspace packages.
+- `pnpm typecheck` — `tsc --build` for libs (project refs) then per-artifact typecheck.
+- `pnpm typecheck:libs` — just the lib project references.
+- `pnpm build` — typecheck then run `build` in any package that defines one.
+
+Per-package:
+
+- `pnpm --filter @warmly/api-server dev` — start the API on `PORT` (default `3000`) with `tsx watch`. Requires a `.env` (copy from `artifacts/api-server/.env.example`).
+- `pnpm --filter @warmly/api-server start` — same but no watch.
+- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`.
+
+Smoke test the foundation: `pnpm install && pnpm typecheck && pnpm --filter @warmly/api-server dev`, then `curl http://localhost:3000/health`.
 
 ## Conventions
 

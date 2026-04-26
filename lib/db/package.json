@@ -1,0 +1,24 @@
+{
+  "name": "@warmly/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
+  },
+  "scripts": {
+    "push": "drizzle-kit push --config ./drizzle.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@warmly/api-spec": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "drizzle-kit": "^0.31.9",
+    "typescript": "~5.9.2"
+  }
+}
