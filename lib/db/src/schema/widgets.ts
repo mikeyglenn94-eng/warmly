@@ -1,11 +1,12 @@
-import { pgTable, text, integer, jsonb, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, jsonb, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import type { Question } from "@warmly/api-spec";
 import { usersTable } from "./users";
 
-// `id` is an app-generated short identifier (e.g. nanoid). Used directly in
-// the embed snippet: <script src="..." data-widget-id="abc123"></script>.
-// `questions` shape is validated against api-spec QuestionSchema at the API
-// boundary; the type is shared here so reads come back fully typed.
+// `id` is an internal stable PK (uuid). `slug` is the public URL identifier
+// shown in the share link (firstsetweb.com/warmly/<slug>); operator-editable,
+// globally unique. `questions` shape is validated against api-spec
+// QuestionSchema at the API boundary; the type is shared here so reads come
+// back fully typed.
 export const widgetsTable = pgTable(
   "widgets",
   {
@@ -13,6 +14,7 @@ export const widgetsTable = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
     whatsappNumber: text("whatsapp_number").notNull(),
     questions: jsonb("questions").$type<Question[]>().notNull(),
     messageTemplate: text("message_template").notNull(),
@@ -24,6 +26,7 @@ export const widgetsTable = pgTable(
   },
   (t) => ({
     userIdx: index("widgets_user_idx").on(t.userId),
+    slugIdx: uniqueIndex("widgets_slug_idx").on(t.slug),
   }),
 );
 

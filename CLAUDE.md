@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Warmly** — WhatsApp click-to-chat with a smart pre-fill form. Part of the **Firstsetweb** product family; will eventually live at `firstsetweb.com/warmly`.
 
-The pitch: a small embeddable widget that captures a few fields from a website visitor before opening a pre-filled WhatsApp chat with the business, plus a dashboard for the business to configure the widget and review captured leads.
+The pitch: a website visitor lands on a Warmly form page, answers 1–5 multi-choice questions, and lands in WhatsApp with a pre-filled, qualifying message ready to send. The operator (a solo small-business owner) configures the form in a dashboard and shares a single link.
+
+**Architecture is link-only, not embedded.** There is no JS bundle to drop into a customer's site. The operator shares a URL like `firstsetweb.com/warmly/<slug>`; the dashboard renders both the operator config UI and the public form pages.
 
 ## Workspace layout
 
@@ -16,18 +18,18 @@ pnpm monorepo. Workspace globs in `pnpm-workspace.yaml`:
 - `lib/*` — shared libraries
 
 ### Apps (`artifacts/`)
-- **`api-server`** *(scaffolded — health-check only)* — Express 5 + TypeScript backend, run via `tsx`. Currently only `GET /health → { status: "ok" }`; imports `@warmly/db` and `@warmly/api-spec` to keep the workspace wiring exercised. Auth, endpoints, and lead capture not yet implemented.
-- **`dashboard`** *(planned)* — Vite + React + TypeScript SPA. Where businesses configure their widget and review captured leads.
-- **`embed-widget`** *(planned)* — Standalone JS bundle, distributed as a single file customers drop onto their site (`<script src=".../warmly.js" data-widget-id="…">`). Renders the chat-launch button and pre-fill form, posts captured data to `api-server`, then redirects to the WhatsApp click-to-chat URL. Must have no runtime peer-dependencies on the host page.
+- **`api-server`** *(scaffolded — auth + widget CRUD)* — Express 5 + TypeScript backend, run via `tsx`. Endpoints: `GET /health`, `POST /auth/signup`, `POST /auth/login`, auth-gated widget CRUD (`POST /widgets`, `GET /widgets`, `GET/PUT/DELETE /widgets/:id`), and the public lookup `GET /widgets/public/:slug`. JWT auth via `Authorization: Bearer …` (7-day expiry). Lazy db singleton in `src/db.ts`.
+- **`dashboard`** *(planned)* — Vite + React + TypeScript SPA. Two surfaces in one app:
+  - **Operator surface** (auth-gated): signup/login + widget config page (questions builder, message template, button styling, slug, copy-link button).
+  - **Public surface** (`/warmly/<slug>`, no auth): renders the multi-choice form, builds the `wa.me` URL with the encoded message, opens WhatsApp.
 
 ### Shared libs (`lib/`)
-- **`api-spec`** *(scaffolded)* — Zod schemas for the widget config: `AnswerSchema`, `QuestionSchema`, `WidgetConfigSchema` (1–5 questions, 2–4 answers per question, hex colour, button position enum, permissive E.164 WhatsApp number). Source of truth for shared types.
-- **`db`** *(scaffolded)* — Drizzle ORM with `postgres-js`. `users` and `widgets` tables. `widgets.questions` is jsonb typed via `@warmly/api-spec`'s `Question[]`. Exports `createDb(url)` for the runtime client and `schema` for the Drizzle namespace.
-- **`auth`** *(planned, possibly)* — shared JWT helpers if/when `api-server` grows a sibling that needs them.
+- **`api-spec`** *(scaffolded)* — Zod schemas. Widget primitives (`AnswerSchema`, `QuestionSchema`, `WidgetConfigSchema`, `SlugSchema`, `WhatsAppNumberSchema`, `HexColourSchema`). Auth (`SignupRequestSchema`, `LoginRequestSchema`, `AuthResponseSchema`). Widget API (`CreateWidgetRequestSchema`, `UpdateWidgetRequestSchema`, `WidgetResponseSchema`, `PublicWidgetResponseSchema`). Source of truth for shared types.
+- **`db`** *(scaffolded)* — Drizzle ORM with `postgres-js`. `users` and `widgets` tables. `widgets.slug` is the public URL identifier (unique, operator-editable); `widgets.id` is the internal stable PK (uuid). `widgets.questions` is jsonb typed via `@warmly/api-spec`'s `Question[]`. Exports `createDb(url)` and a `schema` namespace.
 
 ### Stack at a glance
-- **Database:** PostgreSQL with Drizzle ORM (`postgres-js` driver).
-- **Auth:** JWT-based, 7-day tokens (planned).
+- **Database:** PostgreSQL (Neon in production), Drizzle ORM, `postgres-js` driver.
+- **Auth:** JWT, 7-day expiry, bcryptjs for password hashing. Secret via `JWT_SECRET` env.
 - **Package manager:** pnpm. The root `preinstall` guard rejects npm and yarn.
 - **TypeScript:** Project references via `tsc --build` for libs; `customConditions: ["workspace"]` lets consumers import source TS directly from sibling packages, no build step required.
 
@@ -42,14 +44,29 @@ From the repo root:
 
 Per-package:
 
-- `pnpm --filter @warmly/api-server dev` — start the API on `PORT` (default `3000`) with `tsx watch`. Requires a `.env` (copy from `artifacts/api-server/.env.example`).
+- `pnpm --filter @warmly/api-server dev` — start the API on `PORT` (default `3000`) with `tsx watch`. Requires a `.env` (copy from `artifacts/api-server/.env.example`) with `DATABASE_URL` and `JWT_SECRET`.
 - `pnpm --filter @warmly/api-server start` — same but no watch.
-- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`.
+- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`. Reads from process env at invocation time (e.g. `DATABASE_URL=… pnpm --filter @warmly/db push`).
 
-Smoke test the foundation: `pnpm install && pnpm typecheck && pnpm --filter @warmly/api-server dev`, then `curl http://localhost:3000/health`.
+## API quick reference
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | — | Health check |
+| POST | `/auth/signup` | — | Create user, return JWT |
+| POST | `/auth/login` | — | Verify credentials, return JWT |
+| POST | `/widgets` | Bearer | Create widget (slug + config) |
+| GET | `/widgets` | Bearer | List widgets owned by caller |
+| GET | `/widgets/:id` | Bearer | Get one widget by internal id |
+| PUT | `/widgets/:id` | Bearer | Update widget |
+| DELETE | `/widgets/:id` | Bearer | Delete widget |
+| GET | `/widgets/public/:slug` | — | Public read by slug (sanitised — no userId, no internal ids) |
+
+Ownership leaks are avoided by returning 404 (not 403) on widget routes when the caller is authenticated but isn't the owner.
 
 ## Conventions
 
-- Don't hand-edit anything generated by codegen (will apply once `api-spec` exists).
-- The embed widget must be a single self-contained bundle with no runtime peer dependencies on the host page — assume it lands in arbitrary customer websites with unknown frameworks.
-- Keep the dashboard and the embed widget cleanly separated. The dashboard is for the business; the widget is for the visitor. They share types via `lib/api-spec` but no UI code.
+- The dashboard handles both operator config and public form rendering — same SPA, two route trees. They share types via `lib/api-spec` but should keep UI components separate so the public bundle stays small.
+- The slug is the canonical public identifier. The internal `id` (uuid) is for stable references inside the operator surface only.
+- Email is normalised to lowercase before hashing/storage. Don't compare emails case-sensitively.
+- Validate every API request body via the Zod schemas in `@warmly/api-spec`. Return `{ error, issues }` on failure.

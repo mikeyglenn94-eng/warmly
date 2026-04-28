@@ -1,20 +1,21 @@
 import "dotenv/config";
 import express from "express";
-import { WidgetConfigSchema } from "@warmly/api-spec";
-import { schema } from "@warmly/db";
+import cors from "cors";
+import authRouter from "./routes/auth";
+import widgetsRouter from "./routes/widgets";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.use(authRouter);
+app.use(widgetsRouter);
+
 const port = Number(process.env["PORT"] ?? 3000);
 app.listen(port, () => {
-  // Workspace wiring sanity print: confirms shared libs resolve at runtime.
   console.log(`warmly api-server listening on :${port}`);
-  console.log(
-    `  workspace ok — db tables: [${Object.keys(schema).join(", ")}], api-spec: ${WidgetConfigSchema.constructor.name}`,
-  );
 });
