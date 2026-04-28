@@ -23,24 +23,58 @@ interface DraftWidget {
   brandingEnabled: boolean;
 }
 
-const STARTER: DraftWidget = {
-  slug: "",
+// Starter template shown on first /app load. The slug is generated per-user
+// at component init (see buildStarter) so two new signups don't collide on
+// the same default. The message template uses three full sentences instead
+// of conjunctions so it reads cleanly regardless of how the snippets start.
+const STARTER_BASE: Omit<DraftWidget, "slug"> = {
   whatsappNumber: "",
   questions: [
     {
-      text: "What's the goal?",
+      text: "What are you hoping to work on?",
       answers: [
-        { text: "Lose some weight", snippet: "lose some weight" },
-        { text: "Build some muscle", snippet: "build some muscle" },
-        { text: "Get fit again", snippet: "get fit again" },
+        { text: "I want to feel a bit fitter", snippet: "feel a bit fitter" },
+        { text: "I want to lose some weight", snippet: "lose some weight" },
+        { text: "I want to get stronger", snippet: "get stronger" },
+      ],
+    },
+    {
+      text: "Where are you starting from?",
+      answers: [
+        { text: "Total beginner, never really trained", snippet: "I'm a total beginner" },
+        { text: "I used to train, been a while", snippet: "I used to train but it's been a while" },
+        { text: "I train casually, want more structure", snippet: "I train casually, want more structure" },
+      ],
+    },
+    {
+      text: "What's getting in the way?",
+      answers: [
+        { text: "Worried about the cost", snippet: "worried about the cost" },
+        { text: "Time, juggling work and life", snippet: "worried about where I'd fit it in" },
+        { text: "I just need someone to hold me accountable", snippet: "need someone to hold me accountable" },
       ],
     },
   ],
-  messageTemplate: "Hi! I'd like to {q1}.",
+  messageTemplate: "Hi! I'd like to {q1}. {q2}. {q3}.",
   buttonColour: "#25D366",
   buttonPosition: "bottom-right",
   brandingEnabled: true,
 };
+
+function randomSlug(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    out += chars[bytes[i]! % chars.length];
+  }
+  return out;
+}
+
+function buildStarter(): DraftWidget {
+  return { ...STARTER_BASE, slug: randomSlug() };
+}
 
 function fromResponse(w: WidgetResponse): DraftWidget {
   return {
@@ -85,7 +119,7 @@ export default function OperatorConfig() {
   const isMobile = useMatchesQuery("(max-width: 960px)");
 
   const [existing, setExisting] = useState<WidgetResponse | null>(null);
-  const [draft, setDraft] = useState<DraftWidget>(STARTER);
+  const [draft, setDraft] = useState<DraftWidget>(() => buildStarter());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -112,7 +146,7 @@ export default function OperatorConfig() {
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
-          // No widget yet — keep STARTER as the draft.
+          // No widget yet — keep the starter draft and show the banner.
           return;
         }
         // Other errors fall through; saveError covers user-actionable messaging.
@@ -332,6 +366,41 @@ export default function OperatorConfig() {
           </button>
         </div>
       </div>
+
+      {!existing && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <div
+            style={{
+              background: "var(--orange-tint)",
+              border: "1px solid var(--orange-soft)",
+              borderRadius: 12,
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                background: "var(--orange)",
+                color: "#fff",
+                padding: "3px 8px",
+                borderRadius: 6,
+              }}
+            >
+              Starter template
+            </span>
+            <span style={{ fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>
+              Edit and save when ready.
+            </span>
+          </div>
+        </div>
+      )}
 
       {saveError && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
