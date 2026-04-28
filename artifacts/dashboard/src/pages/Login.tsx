@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { AuthResponse } from "@warmly/api-spec";
 import { api, ApiError } from "../lib/api";
@@ -167,7 +167,7 @@ export function Field({
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         autoFocus={autoFocus}
         required
         style={{
@@ -180,11 +180,11 @@ export function Field({
           fontWeight: 500,
           outline: "none",
         }}
-        onFocus={(e) => {
+        onFocus={(e: FocusEvent<HTMLInputElement>) => {
           e.currentTarget.style.borderColor = "var(--orange)";
           e.currentTarget.style.boxShadow = "0 0 0 4px rgba(226,88,34,0.10)";
         }}
-        onBlur={(e) => {
+        onBlur={(e: FocusEvent<HTMLInputElement>) => {
           e.currentTarget.style.borderColor = "var(--hair)";
           e.currentTarget.style.boxShadow = "none";
         }}

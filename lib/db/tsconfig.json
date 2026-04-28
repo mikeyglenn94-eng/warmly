@@ -9,7 +9,7 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "drizzle.config.ts"],
+  "include": ["src/**/*"],
   "references": [
     { "path": "../api-spec" }
   ]

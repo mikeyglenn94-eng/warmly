@@ -1,6 +1,10 @@
 import { clearToken, getToken } from "./auth";
 
-const BASE = (import.meta.env["VITE_API_URL"] ?? "http://localhost:3000").replace(/\/$/, "");
+// Default to same-origin (empty base) so the production build works without
+// any env-var gymnastics — api-server serves the SPA and API on one origin.
+// Local dev with the Vite dev server (cross-origin) is opt-in by setting
+// VITE_API_URL=http://localhost:3000 in artifacts/dashboard/.env.
+const BASE = (import.meta.env["VITE_API_URL"] ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;

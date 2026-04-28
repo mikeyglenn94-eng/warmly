@@ -11,7 +11,7 @@ export function renderMessage(
   questions: WidgetConfig["questions"],
   answerIndexes: (number | null)[],
 ): string {
-  const substituted = template.replace(/\{q(\d+)\}/g, (match, n: string) => {
+  const substituted = template.replace(/\{q(\d+)\}/g, (match: string, n: string) => {
     const i = Number(n) - 1;
     const q = questions[i];
     const picked = answerIndexes[i];
@@ -27,7 +27,7 @@ export function renderMessage(
 function capitaliseSentences(text: string): string {
   return text
     .split(". ")
-    .map((seg) => (seg.length > 0 ? seg.charAt(0).toUpperCase() + seg.slice(1) : seg))
+    .map((seg: string) => (seg.length > 0 ? seg.charAt(0).toUpperCase() + seg.slice(1) : seg))
     .join(". ");
 }
 

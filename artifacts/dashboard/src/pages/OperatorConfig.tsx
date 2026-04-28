@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
+  Answer,
   ButtonPosition,
   Question,
   WidgetResponse,
@@ -656,7 +657,7 @@ function EditColumn({
         </div>
       </div>
 
-      {draft.questions.map((q, qi) => (
+      {draft.questions.map((q: Question, qi: number) => (
         <QuestionBuilder
           key={qi}
           num={qi + 1}
@@ -672,7 +673,7 @@ function EditColumn({
           onRemove={() =>
             setDraft((d) => ({
               ...d,
-              questions: d.questions.filter((_, i) => i !== qi),
+              questions: d.questions.filter((_: Question, i: number) => i !== qi),
             }))
           }
           onMove={(dir) =>
@@ -988,7 +989,7 @@ function QuestionBuilder({
           <span />
         </div>
         <div style={{ display: "grid", gap: 8 }}>
-          {q.answers.map((a, ai) => (
+          {q.answers.map((a: Answer, ai: number) => (
             <div
               key={ai}
               style={{
@@ -1000,7 +1001,7 @@ function QuestionBuilder({
             >
               <input
                 value={a.text}
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const next = [...q.answers];
                   next[ai] = { ...a, text: e.target.value };
                   onChange({ ...q, answers: next });
@@ -1018,7 +1019,7 @@ function QuestionBuilder({
               />
               <input
                 value={a.snippet}
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const next = [...q.answers];
                   next[ai] = { ...a, snippet: e.target.value };
                   onChange({ ...q, answers: next });
@@ -1039,7 +1040,7 @@ function QuestionBuilder({
                 type="button"
                 onClick={() => {
                   if (q.answers.length <= 2) return;
-                  const next = q.answers.filter((_, i) => i !== ai);
+                  const next = q.answers.filter((_: Answer, i: number) => i !== ai);
                   onChange({ ...q, answers: next });
                 }}
                 disabled={q.answers.length <= 2}
@@ -1131,7 +1132,7 @@ function MessageTemplateEditor({
       </div>
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
         rows={4}
         style={{
           width: "100%",
@@ -1538,7 +1539,7 @@ function Input({
       <input
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={{

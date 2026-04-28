@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Question } from "@warmly/api-spec";
+import type { Answer, Question } from "@warmly/api-spec";
 import WhatsAppGlyph from "./WhatsAppGlyph";
 
 interface FormShellProps {
@@ -42,7 +42,7 @@ export default function FormShell({
   function advanceOrSubmit() {
     if (!hasPick) return;
     if (isLast) {
-      onComplete(picks.map((p) => (p ?? 0)));
+      onComplete(picks.map((p: number | null) => (p ?? 0)));
       return;
     }
     if (forcedStep == null) setInternalStep(current + 1);
@@ -140,7 +140,7 @@ export default function FormShell({
         {q.text}
       </div>
       <div style={{ display: "grid", gap: 10 }}>
-        {q.answers.map((opt, i) => {
+        {q.answers.map((opt: Answer, i: number) => {
           const isSel = selected === i;
           return (
             <button
@@ -310,7 +310,7 @@ export default function FormShell({
 function Dots({ total, current }: { total: number; current: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {Array.from({ length: total }).map((_, i) => (
+      {Array.from({ length: total }).map((_: unknown, i: number) => (
         <span
           key={i}
           style={{

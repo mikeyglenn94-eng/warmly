@@ -51,9 +51,16 @@ Per-package:
 
 - `pnpm --filter @warmly/api-server dev` — start the API on `PORT` (default `3000`) with `tsx watch`. Requires a `.env` (copy from `artifacts/api-server/.env.example`) with `DATABASE_URL` and `JWT_SECRET`.
 - `pnpm --filter @warmly/api-server start` — same but no watch.
-- `pnpm --filter @warmly/dashboard dev` — start the Vite dev server on `:5173`. Reads `VITE_API_URL` from `.env` (defaults to `http://localhost:3000`).
+- `pnpm --filter @warmly/api-server build` — chains the dashboard build then copies its `dist/` into `artifacts/api-server/public/`. Used for production deploys (Replit, etc.) where api-server serves the SPA and the API from one origin.
+- `pnpm --filter @warmly/dashboard dev` — start the Vite dev server on `:5173`. Reads `VITE_API_URL` from `.env` (set to `http://localhost:3000` in `.env.example` for cross-origin local dev).
 - `pnpm --filter @warmly/dashboard build` — typecheck then production Vite build.
 - `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`. Reads from process env at invocation time.
+
+## Deployment
+
+**Single-origin in production.** After `pnpm --filter @warmly/api-server build`, the api-server serves the dashboard from `artifacts/api-server/public` alongside the API. A catch-all middleware sends `index.html` for any GET that isn't `/health`, `/auth/*`, or `/widgets/*`, so React Router handles client-side routing. Add new top-level API prefixes to `isApiPath()` in `artifacts/api-server/src/index.ts` so they don't get swallowed by the SPA fallback.
+
+The dashboard's API client defaults to **same-origin** (empty base URL) when `VITE_API_URL` is unset — production needs no env-var gymnastics. Local dev with the Vite dev server is the only place `VITE_API_URL` matters; the example sets it to `http://localhost:3000`.
 
 ## API quick reference
 
