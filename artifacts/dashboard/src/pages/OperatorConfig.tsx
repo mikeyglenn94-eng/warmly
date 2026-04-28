@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   ButtonPosition,
@@ -54,6 +54,30 @@ function fromResponse(w: WidgetResponse): DraftWidget {
   };
 }
 
+// Fallback for browsers / contexts without async clipboard (e.g. http://
+// origins that aren't localhost). Uses execCommand which is deprecated but
+// still widely supported and works in non-secure contexts.
+function legacyCopy(text: string): boolean {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    ta.style.pointerEvents = "none";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 type PreviewStep = "q1" | "q2" | "q3" | "out";
 
 export default function OperatorConfig() {
@@ -69,6 +93,16 @@ export default function OperatorConfig() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [previewStep, setPreviewStep] = useState<PreviewStep>("q2");
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current != null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     api<WidgetResponse>("/widgets/me", { auth: true })
@@ -155,10 +189,31 @@ export default function OperatorConfig() {
     }
   }
 
-  function copyPublicLink() {
+  async function copyPublicLink() {
     if (!draft.slug) return;
     const url = `${window.location.origin}/m/${draft.slug}`;
-    navigator.clipboard?.writeText(url).catch(() => undefined);
+
+    let ok = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        ok = true;
+      } catch {
+        ok = legacyCopy(url);
+      }
+    } else {
+      ok = legacyCopy(url);
+    }
+    if (!ok) return;
+
+    if (copiedTimerRef.current != null) {
+      window.clearTimeout(copiedTimerRef.current);
+    }
+    setCopied(true);
+    copiedTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copiedTimerRef.current = null;
+    }, 2000);
   }
 
   function logout() {
@@ -240,20 +295,22 @@ export default function OperatorConfig() {
             type="button"
             onClick={copyPublicLink}
             disabled={!draft.slug}
+            aria-live="polite"
             style={{
               height: 40,
               padding: "0 16px",
               borderRadius: 12,
-              background: "transparent",
-              border: "1px solid var(--hair)",
-              color: "var(--ink-2)",
+              background: copied ? "var(--cream)" : "transparent",
+              border: copied ? "1px solid var(--green)" : "1px solid var(--hair)",
+              color: copied ? "var(--green-d)" : "var(--ink-2)",
               fontSize: 13.5,
               fontWeight: 600,
               opacity: draft.slug ? 1 : 0.5,
               cursor: draft.slug ? "pointer" : "not-allowed",
+              transition: "background .15s, border-color .15s, color .15s",
             }}
           >
-            Copy public link
+            {copied ? "Copied" : "Copy public link"}
           </button>
           <button
             type="button"
