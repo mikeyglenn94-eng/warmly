@@ -21,6 +21,7 @@ export const widgetsTable = pgTable(
     buttonColour: text("button_colour").notNull().default("#25D366"),
     buttonPosition: text("button_position").notNull().default("bottom-right"),
     brandingEnabled: boolean("branding_enabled").notNull().default(true),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

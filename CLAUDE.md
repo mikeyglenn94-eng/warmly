@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The pitch: a website visitor lands on a Warmly form page, answers 1–5 multi-choice questions, and lands in WhatsApp with a pre-filled, qualifying message ready to send. The operator (a solo small-business owner) configures the form in a dashboard and shares a single link.
 
-**Architecture is link-only, not embedded.** There is no JS bundle to drop into a customer's site. The operator shares a URL like `firstsetweb.com/warmly/<slug>`; the dashboard renders both the operator config UI and the public form pages.
+**Architecture is link-only, not embedded.** There is no JS bundle to drop into a customer's site. The operator shares a URL like `firstsetweb.com/warmly/<slug>`; the dashboard renders both the operator config UI and the public form pages. **v1 is one widget per user**, enforced at the application layer (the schema is permissive so we can relax this later).
 
 ## Workspace layout
 
@@ -18,19 +18,24 @@ pnpm monorepo. Workspace globs in `pnpm-workspace.yaml`:
 - `lib/*` — shared libraries
 
 ### Apps (`artifacts/`)
-- **`api-server`** *(scaffolded — auth + widget CRUD)* — Express 5 + TypeScript backend, run via `tsx`. Endpoints: `GET /health`, `POST /auth/signup`, `POST /auth/login`, auth-gated widget CRUD (`POST /widgets`, `GET /widgets`, `GET/PUT/DELETE /widgets/:id`), and the public lookup `GET /widgets/public/:slug`. JWT auth via `Authorization: Bearer …` (7-day expiry). Lazy db singleton in `src/db.ts`.
-- **`dashboard`** *(planned)* — Vite + React + TypeScript SPA. Two surfaces in one app:
-  - **Operator surface** (auth-gated): signup/login + widget config page (questions builder, message template, button styling, slug, copy-link button).
-  - **Public surface** (`/warmly/<slug>`, no auth): renders the multi-choice form, builds the `wa.me` URL with the encoded message, opens WhatsApp.
+
+- **`api-server`** *(scaffolded — auth + widget CRUD)* — Express 5 + TypeScript backend, run via `tsx`. Endpoints: `GET /health`, `POST /auth/signup`, `POST /auth/login`, the `/widgets/me` family (auth-gated), and the public `GET /widgets/public/:slug`. JWT auth via `Authorization: Bearer …` (7-day expiry). Lazy db singleton in `src/db.ts`.
+
+- **`dashboard`** *(scaffolded)* — Vite + React 19 + TypeScript SPA. Two route trees in one app:
+  - **Operator surface** (`/login`, `/signup`, `/app`, auth-gated): the form builder with live preview, pause/reactivate, slug + WhatsApp number, button styling. Loads `/widgets/me` on mount; empty state if 404; saves via POST (first time) or PUT.
+  - **Public surface** (`/m/:slug`, no auth): fetches `/widgets/public/:slug`, renders the multi-choice `FormShell`, builds the `wa.me` URL **client-side** with the encoded message, then `window.location.assign`s to it. Skip link uses a generic fallback ("Hi, I came from your website"). Paused widgets show a "currently not taking enquiries" page.
 
 ### Shared libs (`lib/`)
-- **`api-spec`** *(scaffolded)* — Zod schemas. Widget primitives (`AnswerSchema`, `QuestionSchema`, `WidgetConfigSchema`, `SlugSchema`, `WhatsAppNumberSchema`, `HexColourSchema`). Auth (`SignupRequestSchema`, `LoginRequestSchema`, `AuthResponseSchema`). Widget API (`CreateWidgetRequestSchema`, `UpdateWidgetRequestSchema`, `WidgetResponseSchema`, `PublicWidgetResponseSchema`). Source of truth for shared types.
-- **`db`** *(scaffolded)* — Drizzle ORM with `postgres-js`. `users` and `widgets` tables. `widgets.slug` is the public URL identifier (unique, operator-editable); `widgets.id` is the internal stable PK (uuid). `widgets.questions` is jsonb typed via `@warmly/api-spec`'s `Question[]`. Exports `createDb(url)` and a `schema` namespace.
+
+- **`api-spec`** *(scaffolded)* — Zod schemas. Widget primitives (`AnswerSchema`, `QuestionSchema`, `WidgetConfigSchema`, `SlugSchema`, `WhatsAppNumberSchema`, `HexColourSchema`, `WidgetPatchSchema`). Auth (`SignupRequestSchema`, `LoginRequestSchema`, `AuthResponseSchema`). Widget API (`CreateWidgetRequestSchema`, `UpdateWidgetRequestSchema`, `WidgetResponseSchema` (includes `active`), `PublicWidgetResponseSchema` (sanitised, includes `active`)).
+- **`db`** *(scaffolded)* — Drizzle ORM with `postgres-js`. `users` and `widgets` tables. `widgets` has both `id` (uuid PK, internal) and `slug` (unique text, public URL). `widgets.active` boolean for pause. `widgets.questions` is jsonb typed via `@warmly/api-spec`'s `Question[]`. Exports `createDb(url)` and a `schema` namespace.
 
 ### Stack at a glance
+
 - **Database:** PostgreSQL (Neon in production), Drizzle ORM, `postgres-js` driver.
 - **Auth:** JWT, 7-day expiry, bcryptjs for password hashing. Secret via `JWT_SECRET` env.
-- **Package manager:** pnpm. The root `preinstall` guard rejects npm and yarn.
+- **Frontend:** React 19 + Vite, React Router v6. No CSS framework — plain CSS + design tokens in `src/styles/tokens.css`.
+- **Package manager:** pnpm. The root `preinstall` guard rejects npm and yarn (cross-platform via `node -e`).
 - **TypeScript:** Project references via `tsc --build` for libs; `customConditions: ["workspace"]` lets consumers import source TS directly from sibling packages, no build step required.
 
 ## Commands
@@ -46,7 +51,9 @@ Per-package:
 
 - `pnpm --filter @warmly/api-server dev` — start the API on `PORT` (default `3000`) with `tsx watch`. Requires a `.env` (copy from `artifacts/api-server/.env.example`) with `DATABASE_URL` and `JWT_SECRET`.
 - `pnpm --filter @warmly/api-server start` — same but no watch.
-- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`. Reads from process env at invocation time (e.g. `DATABASE_URL=… pnpm --filter @warmly/db push`).
+- `pnpm --filter @warmly/dashboard dev` — start the Vite dev server on `:5173`. Reads `VITE_API_URL` from `.env` (defaults to `http://localhost:3000`).
+- `pnpm --filter @warmly/dashboard build` — typecheck then production Vite build.
+- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`. Reads from process env at invocation time.
 
 ## API quick reference
 
@@ -55,18 +62,22 @@ Per-package:
 | GET | `/health` | — | Health check |
 | POST | `/auth/signup` | — | Create user, return JWT |
 | POST | `/auth/login` | — | Verify credentials, return JWT |
-| POST | `/widgets` | Bearer | Create widget (slug + config) |
-| GET | `/widgets` | Bearer | List widgets owned by caller |
-| GET | `/widgets/:id` | Bearer | Get one widget by internal id |
-| PUT | `/widgets/:id` | Bearer | Update widget |
-| DELETE | `/widgets/:id` | Bearer | Delete widget |
-| GET | `/widgets/public/:slug` | — | Public read by slug (sanitised — no userId, no internal ids) |
+| GET | `/widgets/me` | Bearer | Caller's widget; 404 if none yet |
+| POST | `/widgets/me` | Bearer | Create caller's widget (409 if one exists) |
+| PUT | `/widgets/me` | Bearer | Replace widget config (409 on slug clash) |
+| PATCH | `/widgets/me` | Bearer | Partial update — currently `{ active: boolean }` for pause |
+| DELETE | `/widgets/me` | Bearer | Delete the widget |
+| GET | `/widgets/public/:slug` | — | Public read by slug (sanitised) |
 
 Ownership leaks are avoided by returning 404 (not 403) on widget routes when the caller is authenticated but isn't the owner.
 
 ## Conventions
 
-- The dashboard handles both operator config and public form rendering — same SPA, two route trees. They share types via `lib/api-spec` but should keep UI components separate so the public bundle stays small.
+- **One widget per user** is an application-layer rule. The `widgets` table doesn't carry a unique constraint on `userId` — relaxing this later (multiple widgets per account) won't require a migration.
 - The slug is the canonical public identifier. The internal `id` (uuid) is for stable references inside the operator surface only.
 - Email is normalised to lowercase before hashing/storage. Don't compare emails case-sensitively.
 - Validate every API request body via the Zod schemas in `@warmly/api-spec`. Return `{ error, issues }` on failure.
+- **wa.me URL is built client-side** in `dashboard/src/lib/wa-message.ts` (`renderMessage` + `buildWaUrl`). v1 has no lead capture or analytics, so there's no server-side reason to round-trip a submit.
+- **Slug uniqueness** is checked at save time only — the dashboard surfaces the 409 conflict from the server. There is no separate availability-check endpoint.
+- **Design tokens** live in `dashboard/src/styles/tokens.css` (cream + ink + warm orange palette, blue accents, WhatsApp green reserved as the final-CTA only). The original handoff source files live outside the repo at `~/Documents/Warmly Design/` and are gitignored under `design/`.
+- **Sentence case copy throughout.** No em-dashes in user-facing UI text.

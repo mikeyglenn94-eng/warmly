@@ -47,6 +47,13 @@ export const WidgetConfigSchema = z.object({
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
+// Patch shape for the pause toggle. Other partial updates go through
+// UpdateWidgetRequestSchema below.
+export const WidgetPatchSchema = z.object({
+  active: z.boolean().optional(),
+});
+export type WidgetPatch = z.infer<typeof WidgetPatchSchema>;
+
 // ── Auth ───────────────────────────────────────────────────────────────────
 
 export const EmailSchema = z.string().email().max(254);
@@ -91,12 +98,17 @@ export type UpdateWidgetRequest = z.infer<typeof UpdateWidgetRequestSchema>;
 export const WidgetResponseSchema = WidgetConfigSchema.extend({
   id: z.string(),
   slug: SlugSchema,
+  active: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 export type WidgetResponse = z.infer<typeof WidgetResponseSchema>;
 
 // Public response — no userId, no internal ids beyond what the public form
-// page needs to render. The slug is implicit (it's the URL).
-export const PublicWidgetResponseSchema = WidgetConfigSchema;
+// page needs to render. The slug is implicit (it's the URL). `active` is
+// included so the public form can show a "currently not taking enquiries"
+// state without an extra request.
+export const PublicWidgetResponseSchema = WidgetConfigSchema.extend({
+  active: z.boolean(),
+});
 export type PublicWidgetResponse = z.infer<typeof PublicWidgetResponseSchema>;

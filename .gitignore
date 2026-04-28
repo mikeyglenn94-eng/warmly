@@ -27,3 +27,6 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Design handoffs (kept in ~/Documents/Warmly Design)
+design/

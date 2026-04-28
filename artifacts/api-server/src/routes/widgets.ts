@@ -5,6 +5,7 @@ import { widgetsTable, type Widget } from "@warmly/db";
 import {
   CreateWidgetRequestSchema,
   UpdateWidgetRequestSchema,
+  WidgetPatchSchema,
   type WidgetResponse,
   type PublicWidgetResponse,
 } from "@warmly/api-spec";
@@ -17,6 +18,7 @@ function toWidgetResponse(w: Widget): WidgetResponse {
   return {
     id: w.id,
     slug: w.slug,
+    active: w.active,
     whatsappNumber: w.whatsappNumber,
     questions: w.questions,
     messageTemplate: w.messageTemplate,
@@ -30,6 +32,7 @@ function toWidgetResponse(w: Widget): WidgetResponse {
 
 function toPublicResponse(w: Widget): PublicWidgetResponse {
   return {
+    active: w.active,
     whatsappNumber: w.whatsappNumber,
     questions: w.questions,
     messageTemplate: w.messageTemplate,
@@ -39,9 +42,18 @@ function toPublicResponse(w: Widget): PublicWidgetResponse {
   };
 }
 
+async function findWidgetByUserId(userId: number): Promise<Widget | null> {
+  const [row] = await db()
+    .select()
+    .from(widgetsTable)
+    .where(eq(widgetsTable.userId, userId))
+    .limit(1);
+  return row ?? null;
+}
+
 // ── Public read by slug (no auth) ──────────────────────────────────────────
-// Defined BEFORE the auth-gated /:id route so /widgets/public/:slug is matched
-// first and not swallowed by the param route.
+// Defined BEFORE /widgets/me so /widgets/public/:slug isn't matched against
+// the more general /widgets/me path.
 router.get("/widgets/public/:slug", async (req, res) => {
   const slug = req.params["slug"];
   if (!slug) {
@@ -60,17 +72,36 @@ router.get("/widgets/public/:slug", async (req, res) => {
   res.json(toPublicResponse(row));
 });
 
-// ── Auth-gated CRUD ────────────────────────────────────────────────────────
+// ── /widgets/me — caller's single widget ───────────────────────────────────
+// v1 is one widget per user. Enforced at the application layer (POST returns
+// 409 if the user already has one); the schema doesn't carry a unique
+// constraint on userId so this can be relaxed later without a migration.
 
-router.post("/widgets", requireAuth, async (req, res) => {
+router.get("/widgets/me", requireAuth, async (req, res) => {
+  const userId = req.user!.userId;
+  const widget = await findWidgetByUserId(userId);
+  if (!widget) {
+    res.status(404).json({ error: "No widget configured" });
+    return;
+  }
+  res.json(toWidgetResponse(widget));
+});
+
+router.post("/widgets/me", requireAuth, async (req, res) => {
+  const userId = req.user!.userId;
   const parsed = CreateWidgetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid widget payload", issues: parsed.error.issues });
     return;
   }
-  const userId = req.user!.userId;
-  const { slug, ...config } = parsed.data;
 
+  const existing = await findWidgetByUserId(userId);
+  if (existing) {
+    res.status(409).json({ error: "Widget already exists for this user; use PUT /widgets/me to update" });
+    return;
+  }
+
+  const { slug, ...config } = parsed.data;
   const [slugTaken] = await db()
     .select({ id: widgetsTable.id })
     .from(widgetsTable)
@@ -102,41 +133,8 @@ router.post("/widgets", requireAuth, async (req, res) => {
   res.status(201).json(toWidgetResponse(row));
 });
 
-router.get("/widgets", requireAuth, async (req, res) => {
+router.put("/widgets/me", requireAuth, async (req, res) => {
   const userId = req.user!.userId;
-  const rows = await db()
-    .select()
-    .from(widgetsTable)
-    .where(eq(widgetsTable.userId, userId));
-  res.json(rows.map(toWidgetResponse));
-});
-
-router.get("/widgets/:id", requireAuth, async (req, res) => {
-  const id = req.params["id"];
-  const userId = req.user!.userId;
-  if (!id) {
-    res.status(404).json({ error: "Widget not found" });
-    return;
-  }
-  const [row] = await db()
-    .select()
-    .from(widgetsTable)
-    .where(and(eq(widgetsTable.id, id), eq(widgetsTable.userId, userId)))
-    .limit(1);
-  if (!row) {
-    res.status(404).json({ error: "Widget not found" });
-    return;
-  }
-  res.json(toWidgetResponse(row));
-});
-
-router.put("/widgets/:id", requireAuth, async (req, res) => {
-  const id = req.params["id"];
-  const userId = req.user!.userId;
-  if (!id) {
-    res.status(404).json({ error: "Widget not found" });
-    return;
-  }
   const parsed = UpdateWidgetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid widget payload", issues: parsed.error.issues });
@@ -144,13 +142,19 @@ router.put("/widgets/:id", requireAuth, async (req, res) => {
   }
   const updates = parsed.data;
 
-  if (updates.slug) {
+  const existing = await findWidgetByUserId(userId);
+  if (!existing) {
+    res.status(404).json({ error: "No widget configured" });
+    return;
+  }
+
+  if (updates.slug && updates.slug !== existing.slug) {
     const [taken] = await db()
       .select({ id: widgetsTable.id })
       .from(widgetsTable)
       .where(eq(widgetsTable.slug, updates.slug))
       .limit(1);
-    if (taken && taken.id !== id) {
+    if (taken) {
       res.status(409).json({ error: "Slug already taken" });
       return;
     }
@@ -159,28 +163,48 @@ router.put("/widgets/:id", requireAuth, async (req, res) => {
   const [row] = await db()
     .update(widgetsTable)
     .set({ ...updates, updatedAt: new Date() })
-    .where(and(eq(widgetsTable.id, id), eq(widgetsTable.userId, userId)))
+    .where(and(eq(widgetsTable.id, existing.id), eq(widgetsTable.userId, userId)))
     .returning();
   if (!row) {
-    res.status(404).json({ error: "Widget not found" });
+    res.status(500).json({ error: "Failed to update widget" });
     return;
   }
   res.json(toWidgetResponse(row));
 });
 
-router.delete("/widgets/:id", requireAuth, async (req, res) => {
-  const id = req.params["id"];
+// PATCH for the pause toggle. Single-purpose payload: `{ active: boolean }`.
+router.patch("/widgets/me", requireAuth, async (req, res) => {
   const userId = req.user!.userId;
-  if (!id) {
-    res.status(404).json({ error: "Widget not found" });
+  const parsed = WidgetPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid patch payload", issues: parsed.error.issues });
     return;
   }
+  if (Object.keys(parsed.data).length === 0) {
+    res.status(400).json({ error: "Empty patch" });
+    return;
+  }
+
+  const [row] = await db()
+    .update(widgetsTable)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(widgetsTable.userId, userId))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "No widget configured" });
+    return;
+  }
+  res.json(toWidgetResponse(row));
+});
+
+router.delete("/widgets/me", requireAuth, async (req, res) => {
+  const userId = req.user!.userId;
   const deleted = await db()
     .delete(widgetsTable)
-    .where(and(eq(widgetsTable.id, id), eq(widgetsTable.userId, userId)))
+    .where(eq(widgetsTable.userId, userId))
     .returning({ id: widgetsTable.id });
   if (deleted.length === 0) {
-    res.status(404).json({ error: "Widget not found" });
+    res.status(404).json({ error: "No widget configured" });
     return;
   }
   res.status(204).end();

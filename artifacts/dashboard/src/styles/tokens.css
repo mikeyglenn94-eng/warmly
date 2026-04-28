@@ -1,0 +1,52 @@
+/* Warmly tokens */
+:root {
+  --cream: #F5F0E8;
+  --cream-2: #EBE3D0;
+  --surface: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-2: #34332E;
+  --muted: #7A7466;
+  --muted-2: #B6A892;
+  --hair: #E2D8C2;
+  --hair-2: #ECE3D0;
+  /* orange (primary accent) */
+  --orange: #E25822;
+  --orange-d: #B43E10;
+  --orange-soft: #FBE0CE;
+  --orange-tint: #FCEEDF;
+  /* blue (supporting tone) */
+  --blue: #B8D4E3;
+  --blue-2: #C9DDE8;
+  --blue-d: #5C7E92;
+  --blue-soft: #E6EFF5;
+  /* aliases (legacy var names → orange) */
+  --tan: var(--orange);
+  --tan-ink: var(--orange-d);
+  --tan-soft: var(--orange-soft);
+  --tan-tint: var(--orange-tint);
+  --olive: var(--orange);
+  --olive-d: var(--orange-d);
+  --olive-soft: var(--orange-soft);
+  --olive-tint: var(--orange-tint);
+  --green: #25D366;
+  --green-d: #1FBD58;
+  --red: #B85342;
+  --red-soft: #F8E5DF;
+  --r-sm: 6px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --shadow-sm: 0 1px 2px rgba(42,37,32,0.06), 0 0 0 1px rgba(42,37,32,0.04);
+  --shadow-md: 0 6px 24px -10px rgba(42,37,32,0.18), 0 1px 2px rgba(42,37,32,0.04);
+  --shadow-lg: 0 24px 60px -28px rgba(42,37,32,0.30), 0 2px 4px rgba(42,37,32,0.05);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Roboto Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+.warmly * { box-sizing: border-box; }
+.warmly { font-family: var(--font-sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.warmly button { font-family: inherit; cursor: pointer; }
+.warmly input, .warmly textarea, .warmly select { font-family: inherit; color: inherit; }
+
+/* shared atoms */
+.eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tan); }
+.hair { background: var(--hair); }
