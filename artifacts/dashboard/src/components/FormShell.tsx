@@ -306,17 +306,29 @@ export default function FormShell({
       )}
 
       {brandingEnabled && (
-        <div
+        <a
+          href="https://warmly.platespinner.studio"
+          target="_blank"
+          rel="noopener noreferrer"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.textDecoration = "underline";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.textDecoration = "none";
+          }}
           style={{
+            display: "block",
             textAlign: "center",
             marginTop: 16,
             fontSize: 11,
             color: "var(--muted-2)",
             letterSpacing: "0.04em",
+            textDecoration: "none",
+            textUnderlineOffset: 3,
           }}
         >
-          Powered by Warmly
-        </div>
+          Want this for your business? warmly.platespinner.studio
+        </a>
       )}
     </div>
   );
