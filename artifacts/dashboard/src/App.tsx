@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Admin from "./pages/Admin";
 import OperatorConfig from "./pages/OperatorConfig";
 import PublicForm from "./pages/PublicForm";
 
@@ -16,6 +17,14 @@ export default function App() {
         element={
           <RequireAuth>
             <OperatorConfig />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth>
+            <Admin />
           </RequireAuth>
         }
       />

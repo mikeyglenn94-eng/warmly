@@ -112,3 +112,33 @@ export const PublicWidgetResponseSchema = WidgetConfigSchema.extend({
   active: z.boolean(),
 });
 export type PublicWidgetResponse = z.infer<typeof PublicWidgetResponseSchema>;
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+// Hardcoded allowlist for v1 — single source of truth, consumed by both the
+// api-server's admin route guard and (transitively, via api responses) the
+// dashboard. Emails are normalised to lowercase on signup/login so the
+// stored side is always lowercase; isAdminEmail also lowercases the input
+// for safety.
+
+export const ADMIN_EMAILS: readonly string[] = ["mikeyglenn94@gmail.com"];
+
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
+
+export const AdminUserWidgetSchema = z.object({
+  slug: SlugSchema,
+  whatsappNumber: z.string(),
+  active: z.boolean(),
+  updatedAt: z.string(),
+});
+export type AdminUserWidget = z.infer<typeof AdminUserWidgetSchema>;
+
+export const AdminUserRowSchema = z.object({
+  id: z.number().int().positive(),
+  email: EmailSchema,
+  createdAt: z.string(),
+  widget: AdminUserWidgetSchema.nullable(),
+});
+export type AdminUserRow = z.infer<typeof AdminUserRowSchema>;

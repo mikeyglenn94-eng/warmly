@@ -6,6 +6,7 @@ import express, { type Request } from "express";
 import cors from "cors";
 import authRouter from "./routes/auth";
 import widgetsRouter from "./routes/widgets";
+import adminRouter from "./routes/admin";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,6 +20,7 @@ app.get("/health", (_req, res) => {
 
 app.use(authRouter);
 app.use(widgetsRouter);
+app.use(adminRouter);
 
 // ── Serve the built dashboard ──────────────────────────────────────────────
 // In production (after `pnpm --filter @warmly/api-server run build`) the
@@ -40,7 +42,10 @@ function isApiPath(reqPath: Request["path"]): boolean {
     reqPath === "/auth" ||
     reqPath.startsWith("/auth/") ||
     reqPath === "/widgets" ||
-    reqPath.startsWith("/widgets/")
+    reqPath.startsWith("/widgets/") ||
+    // /admin alone is a SPA route (the dashboard's Admin page); only
+    // /admin/* sub-paths belong to the API.
+    reqPath.startsWith("/admin/")
   );
 }
 
