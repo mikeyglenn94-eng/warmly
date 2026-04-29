@@ -32,27 +32,27 @@ const STARTER_BASE: Omit<DraftWidget, "slug"> = {
   whatsappNumber: "",
   questions: [
     {
-      text: "What are you hoping to work on?",
+      text: "What's pulling you toward functional fitness?",
       answers: [
-        { text: "I want to feel a bit fitter", snippet: "feel a bit fitter" },
-        { text: "I want to lose some weight", snippet: "lose some weight" },
-        { text: "I want to get stronger", snippet: "get stronger" },
+        { text: "Get stronger, fitter, healthier", snippet: "get stronger, fitter, healthier" },
+        { text: "Make new mates, be part of something", snippet: "find a community and make new mates" },
+        { text: "Honestly? Just want to look better naked", snippet: "honestly, just look and feel better" },
       ],
     },
     {
-      text: "Where are you starting from?",
+      text: "What's the worry?",
       answers: [
-        { text: "Total beginner, never really trained", snippet: "I'm a total beginner" },
-        { text: "I used to train, been a while", snippet: "I used to train but it's been a while" },
-        { text: "I train casually, want more structure", snippet: "I train casually, want more structure" },
+        { text: "Worried about getting injured", snippet: "I'm worried about getting injured" },
+        { text: "Don't think I'm fit enough yet", snippet: "I'm not sure I'm fit enough yet" },
+        { text: "Total beginner, won't know what I'm doing", snippet: "I'm a total beginner and won't know what I'm doing" },
       ],
     },
     {
-      text: "What's getting in the way?",
+      text: "What would help you most?",
       answers: [
-        { text: "Worried about the cost", snippet: "worried about the cost" },
-        { text: "Time, juggling work and life", snippet: "worried about where I'd fit it in" },
-        { text: "I just need someone to hold me accountable", snippet: "need someone to hold me accountable" },
+        { text: "Need someone to ease me in", snippet: "I need someone to ease me in" },
+        { text: "Want a proper structured plan", snippet: "I want a proper structured plan" },
+        { text: "Just need accountability and a kick", snippet: "I just need accountability and a kick" },
       ],
     },
   ],
