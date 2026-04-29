@@ -322,6 +322,18 @@ export default function OperatorConfig() {
           >
             Three questions, one link. Replace your WhatsApp button with this and leads arrive with a message ready to send.
           </p>
+          {isMobile && (
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--muted-2)",
+                margin: "6px 0 0",
+                fontWeight: 500,
+              }}
+            >
+              Tap Edit and Preview tabs to switch.
+            </p>
+          )}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button
