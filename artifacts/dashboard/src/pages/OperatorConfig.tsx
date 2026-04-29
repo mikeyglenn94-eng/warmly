@@ -398,6 +398,42 @@ export default function OperatorConfig() {
     >
       <TopBar onLogout={logout} />
 
+      {/* Discreet "see it working" link. Lives only on /app — Upgrade and
+          PublicForm pages are separate components and never render this. */}
+      <div
+        style={{
+          background: "var(--blue-soft)",
+          padding: isMobile ? "10px 16px" : "10px 28px",
+          fontSize: 13,
+          color: "var(--ink-2)",
+          textAlign: "center",
+          lineHeight: 1.5,
+          fontWeight: 500,
+        }}
+      >
+        Want to see one in the wild? Try mine:{" "}
+        <a
+          href="https://warmly.platespinner.studio/m/mgpt"
+          target="_blank"
+          rel="noopener noreferrer"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.textDecoration = "underline";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.textDecoration = "none";
+          }}
+          style={{
+            color: "var(--orange-d)",
+            textDecoration: "none",
+            fontWeight: 600,
+            textUnderlineOffset: 3,
+            wordBreak: "break-word",
+          }}
+        >
+          warmly.platespinner.studio/m/mgpt
+        </a>
+      </div>
+
       <div
         style={{
           padding: isMobile ? "16px 16px 8px" : "22px 28px 8px",
