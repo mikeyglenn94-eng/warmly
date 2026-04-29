@@ -8,8 +8,12 @@ import { buildWaUrl, renderMessage, SKIP_FALLBACK_MESSAGE } from "../lib/wa-mess
 export default function PublicForm() {
   const { slug } = useParams<{ slug: string }>();
   const [config, setConfig] = useState<PublicWidgetResponse | null>(null);
+  // PAYWALL DISABLED — the previous version surfaced 402 from the public
+  // endpoint as a "this form isn't live yet" page. With the server-side
+  // gate removed there's no 402 to handle; only 404 / generic error
+  // remain. Re-enable by reverting this commit.
   const [status, setStatus] = useState<
-    "loading" | "ok" | "not-found" | "not-active" | "error"
+    "loading" | "ok" | "not-found" | "error"
   >("loading");
 
   useEffect(() => {
@@ -23,9 +27,6 @@ export default function PublicForm() {
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
           setStatus("not-found");
-        } else if (err instanceof ApiError && err.status === 402) {
-          // Operator hasn't subscribed yet — public form isn't serving.
-          setStatus("not-active");
         } else {
           setStatus("error");
         }
@@ -48,13 +49,6 @@ export default function PublicForm() {
         <PageMessage
           title="Form not found"
           body="This link doesn't lead anywhere. Check the spelling or ask the person who shared it with you."
-        />
-      )}
-
-      {status === "not-active" && (
-        <PageMessage
-          title="This form isn't live yet"
-          body="The owner is finalising things. Try again later."
         />
       )}
 

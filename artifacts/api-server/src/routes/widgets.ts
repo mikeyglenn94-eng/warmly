@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { usersTable, widgetsTable, type Widget } from "@warmly/db";
+import { widgetsTable, type Widget } from "@warmly/db";
 import {
   CreateWidgetRequestSchema,
   UpdateWidgetRequestSchema,
@@ -10,7 +10,6 @@ import {
   type PublicWidgetResponse,
 } from "@warmly/api-spec";
 import { db } from "../db";
-import { isPaid } from "../lib/billing";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -54,9 +53,13 @@ async function findWidgetByUserId(userId: number): Promise<Widget | null> {
 
 // ── Public read by slug (no auth) ──────────────────────────────────────────
 // Defined BEFORE /widgets/me so /widgets/public/:slug isn't matched against
-// the more general /widgets/me path. Joins users so we can gate on the
-// operator's billing status — unpaid operators get a 402 the dashboard
-// renders as "form isn't live yet".
+// the more general /widgets/me path.
+//
+// PAYWALL DISABLED — pending Stripe webhook investigation. The previous
+// version joined users and returned 402 when the owner's subscription
+// wasn't active. Re-enable by reverting the commit that introduced this
+// marker (grep `PAYWALL DISABLED` for the matching marker in
+// dashboard/src/pages/OperatorConfig.tsx).
 router.get("/widgets/public/:slug", async (req, res) => {
   const slug = req.params["slug"];
   if (!slug) {
@@ -64,28 +67,15 @@ router.get("/widgets/public/:slug", async (req, res) => {
     return;
   }
   const [row] = await db()
-    .select({
-      widget: widgetsTable,
-      ownerStatus: usersTable.subscriptionStatus,
-      ownerActiveUntil: usersTable.planActiveUntil,
-    })
+    .select()
     .from(widgetsTable)
-    .innerJoin(usersTable, eq(widgetsTable.userId, usersTable.id))
     .where(eq(widgetsTable.slug, slug))
     .limit(1);
   if (!row) {
     res.status(404).json({ error: "Widget not found" });
     return;
   }
-  const ownerPaid = isPaid({
-    subscriptionStatus: row.ownerStatus,
-    planActiveUntil: row.ownerActiveUntil,
-  });
-  if (!ownerPaid) {
-    res.status(402).json({ error: "Form not yet active" });
-    return;
-  }
-  res.json(toPublicResponse(row.widget));
+  res.json(toPublicResponse(row));
 });
 
 // ── /widgets/me — caller's single widget ───────────────────────────────────

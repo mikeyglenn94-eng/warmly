@@ -3,9 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import type {
   Answer,
   ButtonPosition,
-  MeResponse,
   Question,
-  StripeRedirectResponse,
   WidgetResponse,
 } from "@warmly/api-spec";
 import { CreateWidgetRequestSchema, SlugSchema, WhatsAppNumberSchema } from "@warmly/api-spec";
@@ -144,14 +142,12 @@ export default function OperatorConfig() {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
 
-  // Billing state. me is null until /me resolves; treat unknown as
-  // "preview mode" (banner shown, copy gated) to be safe.
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const isPaid = me?.isPaid ?? false;
-
-  // Success banner shown briefly after returning from Stripe Checkout via
-  // ?upgrade=success. The query param is stripped from the URL after read
-  // so a refresh doesn't re-show it.
+  // PAYWALL DISABLED — pending Stripe webhook investigation. The
+  // previous version held `me`/`isPaid` state from /me, refetched after
+  // checkout, and gated several UI surfaces. All gating is removed; the
+  // success banner below still fires if someone manually completes
+  // /app/upgrade (the page is still navigable directly), but there's
+  // nothing in the normal flow that lands them there.
   const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
 
   useEffect(() => {
@@ -162,33 +158,14 @@ export default function OperatorConfig() {
     };
   }, []);
 
-  function refetchMe(): Promise<void> {
-    return api<MeResponse>("/me", { auth: true })
-      .then((m) => setMe(m))
-      .catch(() => undefined);
-  }
-
-  useEffect(() => {
-    refetchMe();
-  }, []);
-
   useEffect(() => {
     const params = new URLSearchParams(loc.search);
     if (params.get("upgrade") === "success") {
       setShowUpgradeSuccess(true);
       // Clean the URL so a refresh doesn't re-show the banner.
       window.history.replaceState({}, "", loc.pathname);
-      // Webhook may take a beat to land — refetch /me a couple of times so
-      // the upgrade banner clears and the Copy button unlocks soon after.
-      refetchMe();
-      const t1 = window.setTimeout(refetchMe, 2000);
-      const t2 = window.setTimeout(refetchMe, 6000);
-      const t3 = window.setTimeout(() => setShowUpgradeSuccess(false), 8000);
-      return () => {
-        window.clearTimeout(t1);
-        window.clearTimeout(t2);
-        window.clearTimeout(t3);
-      };
+      const t = window.setTimeout(() => setShowUpgradeSuccess(false), 8000);
+      return () => window.clearTimeout(t);
     }
     return undefined;
   }, [loc.search, loc.pathname]);
@@ -291,12 +268,11 @@ export default function OperatorConfig() {
 
   async function copyPublicLink() {
     if (!draft.slug) return;
-    // First-time publish path: unpaid users get bounced to /app/upgrade
-    // instead of seeing a copy that won't actually serve a live form.
-    if (!isPaid) {
-      nav("/app/upgrade");
-      return;
-    }
+    // PAYWALL DISABLED — pending Stripe webhook investigation. The
+    // previous version redirected unpaid users to /app/upgrade here.
+    // Re-enable by reverting the commit that introduced this marker
+    // (grep `PAYWALL DISABLED` for the matching marker in
+    // api-server/src/routes/widgets.ts).
     const url = `${window.location.origin}/m/${draft.slug}`;
 
     let ok = false;
@@ -322,20 +298,10 @@ export default function OperatorConfig() {
     }, 2000);
   }
 
-  async function openBillingPortal() {
-    try {
-      const res = await api<StripeRedirectResponse>("/billing/create-portal-session", {
-        method: "POST",
-        body: { returnUrl: `${window.location.origin}/app` },
-        auth: true,
-      });
-      window.location.assign(res.url);
-    } catch (err) {
-      setSaveError(
-        err instanceof ApiError ? err.message : "Could not open billing portal",
-      );
-    }
-  }
+  // PAYWALL DISABLED — openBillingPortal() and the Manage billing link
+  // that used it were removed. The /billing/create-portal-session
+  // endpoint still exists server-side; just nothing in the dashboard
+  // calls it right now.
 
   function logout() {
     clearToken();
@@ -431,42 +397,6 @@ export default function OperatorConfig() {
       }}
     >
       <TopBar onLogout={logout} />
-
-      {/* Discreet "see it working" link. Lives only on /app — Upgrade and
-          PublicForm pages are separate components and never render this. */}
-      <div
-        style={{
-          background: "var(--blue-soft)",
-          padding: isMobile ? "10px 16px" : "10px 28px",
-          fontSize: 13,
-          color: "var(--ink-2)",
-          textAlign: "center",
-          lineHeight: 1.5,
-          fontWeight: 500,
-        }}
-      >
-        Want to see one in the wild? Try mine:{" "}
-        <a
-          href="https://warmly.platespinner.studio/m/mgpt"
-          target="_blank"
-          rel="noopener noreferrer"
-          onMouseEnter={(e) => {
-            e.currentTarget.style.textDecoration = "underline";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.textDecoration = "none";
-          }}
-          style={{
-            color: "var(--orange-d)",
-            textDecoration: "none",
-            fontWeight: 600,
-            textUnderlineOffset: 3,
-            wordBreak: "break-word",
-          }}
-        >
-          warmly.platespinner.studio/m/mgpt
-        </a>
-      </div>
 
       <div
         style={{
@@ -589,61 +519,9 @@ export default function OperatorConfig() {
         </div>
       )}
 
-      {me && !isPaid && !showUpgradeSuccess && (
-        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
-          <div
-            style={{
-              background: "var(--blue-soft)",
-              border: "1px solid var(--blue)",
-              borderRadius: 12,
-              padding: "10px 14px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-              fontSize: 13,
-              fontWeight: 500,
-              color: "var(--ink-2)",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                background: "var(--ink)",
-                color: "var(--cream)",
-                padding: "3px 8px",
-                borderRadius: 6,
-              }}
-            >
-              Preview mode
-            </span>
-            <span style={{ flex: 1, minWidth: 160 }}>
-              Form is in preview. Upgrade to make it live.
-            </span>
-            <button
-              type="button"
-              onClick={() => nav("/app/upgrade")}
-              style={{
-                height: 32,
-                padding: "0 12px",
-                borderRadius: 8,
-                background: "var(--orange)",
-                color: "#fff",
-                border: "none",
-                fontSize: 12.5,
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Upgrade →
-            </button>
-          </div>
-        </div>
-      )}
+      {/* PAYWALL DISABLED — the "Preview mode" banner that linked to
+          /app/upgrade was removed here. Re-enable by reverting this
+          commit. */}
 
       {saveError && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
@@ -722,8 +600,6 @@ export default function OperatorConfig() {
             setSlugTaken={setSlugTaken}
             onTogglePause={togglePause}
             isNarrow={isNarrow}
-            isPaid={isPaid}
-            onManageBilling={openBillingPortal}
           />
         )}
         {(!isMobile || mobileTab === "preview") && (
@@ -827,8 +703,6 @@ function EditColumn({
   setSlugTaken,
   onTogglePause,
   isNarrow,
-  isPaid,
-  onManageBilling,
 }: {
   draft: DraftWidget;
   setDraft: (d: DraftWidget | ((prev: DraftWidget) => DraftWidget)) => void;
@@ -837,8 +711,6 @@ function EditColumn({
   setSlugTaken: (b: boolean) => void;
   onTogglePause: () => void;
   isNarrow: boolean;
-  isPaid: boolean;
-  onManageBilling: () => void;
 }) {
   const slugValid = SlugSchema.safeParse(draft.slug).success;
   const numberValid = WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success;
@@ -1026,32 +898,8 @@ function EditColumn({
         isNarrow={isNarrow}
       />
 
-      {isPaid && (
-        <div
-          style={{
-            textAlign: "right",
-            paddingTop: 4,
-          }}
-        >
-          <button
-            type="button"
-            onClick={onManageBilling}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--muted)",
-              fontSize: 12.5,
-              fontWeight: 500,
-              cursor: "pointer",
-              textDecoration: "underline",
-              textUnderlineOffset: 3,
-              padding: 4,
-            }}
-          >
-            Manage billing
-          </button>
-        </div>
-      )}
+      {/* PAYWALL DISABLED — the Manage billing link was removed here.
+          Re-enable by reverting this commit. */}
     </div>
   );
 }
