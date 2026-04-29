@@ -413,7 +413,7 @@ export default function OperatorConfig() {
       >
         Want to see one in the wild? Try mine:{" "}
         <a
-          href="https://warmly.platespinner.studio/m/mgpt"
+          href="https://warmly.platespinner.studio/m/test"
           target="_blank"
           rel="noopener noreferrer"
           onMouseEnter={(e) => {
@@ -430,7 +430,7 @@ export default function OperatorConfig() {
             wordBreak: "break-word",
           }}
         >
-          warmly.platespinner.studio/m/mgpt
+          warmly.platespinner.studio/m/test
         </a>
       </div>
 
