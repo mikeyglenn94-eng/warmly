@@ -63,6 +63,7 @@ export default function PublicForm() {
       {status === "ok" && config && config.active && (
         <FormShell
           questions={config.questions}
+          messageTemplate={config.messageTemplate}
           brandingEnabled={config.brandingEnabled}
           onComplete={(picks) => {
             const message = renderMessage(config.messageTemplate, config.questions, picks);

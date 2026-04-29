@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Answer, Question } from "@warmly/api-spec";
+import { renderMessage } from "../lib/wa-message";
 import WhatsAppGlyph from "./WhatsAppGlyph";
+
+// How long the highlighted answer state shows before the form auto-advances.
+// 250ms reads as "I see you tapped that, here's the next one" without feeling
+// laggy. Re-tapping a different answer cancels the in-flight advance.
+const ADVANCE_DELAY_MS = 250;
 
 // "One quick tap" / "Three quick taps". WidgetConfigSchema constrains
 // questions to 1–5; "A few quick taps" is just defensive fallback.
@@ -19,55 +25,108 @@ function tapsCopy(n: number): string {
 
 interface FormShellProps {
   questions: Question[];
+  // Used by the review state to render the assembled message preview.
+  // Optional because the operator-config preview pane uses forcedStep
+  // and never reaches review; safe to default to empty there.
+  messageTemplate?: string;
   brandingEnabled?: boolean;
   onComplete: (picks: number[]) => void;
   onSkip?: () => void;
   // Allow the operator-config preview pane to drive which question is on
-  // screen without taking over the internal state machine entirely.
+  // screen without taking over the internal state machine entirely. When
+  // forcedStep is set, auto-advance is also disabled — the parent owns
+  // the step.
   forcedStep?: number;
 }
 
+type InternalStep = number | "review";
+
 export default function FormShell({
   questions,
+  messageTemplate = "",
   brandingEnabled = true,
   onComplete,
   onSkip,
   forcedStep,
 }: FormShellProps) {
-  const [internalStep, setInternalStep] = useState(0);
+  const [internalStep, setInternalStep] = useState<InternalStep>(0);
   const [picks, setPicks] = useState<(number | null)[]>(() =>
     questions.map(() => null),
   );
+  const advanceTimerRef = useRef<number | null>(null);
 
+  const isPreview = forcedStep != null;
   const total = questions.length;
-  const current = forcedStep ?? internalStep;
-  const q = questions[current];
-  const selected = picks[current];
-  const isLast = current === total - 1;
-  const hasPick = selected != null;
+  const stepValue: InternalStep = isPreview ? forcedStep : internalStep;
+  const isReview = stepValue === "review";
 
-  function pick(i: number) {
-    setPicks((prev) => {
-      const next = [...prev];
-      next[current] = i;
-      return next;
-    });
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current != null) {
+        window.clearTimeout(advanceTimerRef.current);
+      }
+    };
+  }, []);
+
+  function clearPendingAdvance() {
+    if (advanceTimerRef.current != null) {
+      window.clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
   }
 
-  function advanceOrSubmit() {
-    if (!hasPick) return;
-    if (isLast) {
-      onComplete(picks.map((p: number | null) => (p ?? 0)));
-      return;
-    }
-    if (forcedStep == null) setInternalStep(current + 1);
+  function pick(i: number) {
+    if (stepValue === "review") return;
+    const stepIdx = stepValue;
+    setPicks((prev: (number | null)[]) => {
+      const next = [...prev];
+      next[stepIdx] = i;
+      return next;
+    });
+    // Operator preview: highlight only, never auto-advance — the parent
+    // controls which step is visible.
+    if (isPreview) return;
+
+    clearPendingAdvance();
+    advanceTimerRef.current = window.setTimeout(() => {
+      advanceTimerRef.current = null;
+      setInternalStep((prev: InternalStep): InternalStep => {
+        if (prev === "review") return prev;
+        if (prev === total - 1) return "review";
+        return prev + 1;
+      });
+    }, ADVANCE_DELAY_MS);
   }
 
   function back() {
-    if (forcedStep == null && current > 0) setInternalStep(current - 1);
+    if (isPreview) return;
+    clearPendingAdvance();
+    setInternalStep((prev: InternalStep): InternalStep => {
+      if (prev === "review") return total - 1;
+      if (typeof prev === "number" && prev > 0) return prev - 1;
+      return prev;
+    });
   }
 
-  if (!q) return null;
+  function submit() {
+    onComplete(picks.map((p: number | null) => p ?? 0));
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const reviewMessage = isReview
+    ? renderMessage(
+        messageTemplate,
+        questions,
+        picks.map((p: number | null) => p ?? 0),
+      )
+    : "";
+
+  const currentIdx = isReview ? -1 : (stepValue as number);
+  const q = !isReview && currentIdx >= 0 ? questions[currentIdx] : null;
+  const selected = !isReview && currentIdx >= 0 ? picks[currentIdx] ?? null : null;
+
+  if (!isReview && !q) return null;
 
   return (
     <div
@@ -88,8 +147,8 @@ export default function FormShell({
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
-          background: "var(--blue)",
-          color: "var(--blue-d)",
+          background: isReview ? "rgba(37, 211, 102, 0.18)" : "var(--blue)",
+          color: isReview ? "var(--green-d)" : "var(--blue-d)",
           padding: "5px 11px",
           borderRadius: 999,
           fontSize: 11,
@@ -104,10 +163,10 @@ export default function FormShell({
             width: 6,
             height: 6,
             borderRadius: 99,
-            background: "var(--blue-d)",
+            background: isReview ? "var(--green-d)" : "var(--blue-d)",
           }}
         />
-        A few quick questions
+        {isReview ? "Ready to send" : "A few quick questions"}
       </div>
 
       <h1
@@ -120,7 +179,7 @@ export default function FormShell({
           color: "var(--ink)",
         }}
       >
-        Hey, glad you're here.
+        {isReview ? "All set." : "Hey, glad you're here."}
       </h1>
       <p
         style={{
@@ -131,143 +190,160 @@ export default function FormShell({
           fontWeight: 500,
         }}
       >
-        {tapsCopy(total)} and you'll be chatting on WhatsApp.
+        {isReview
+          ? "Open WhatsApp to send your message."
+          : `${tapsCopy(total)} and you'll be chatting on WhatsApp.`}
       </p>
 
-      <div
-        style={{
-          fontSize: "clamp(15px, 2.4vw, 17px)",
-          color: "var(--ink)",
-          marginBottom: 14,
-          fontWeight: 600,
-          letterSpacing: "-0.005em",
-        }}
-      >
-        <span
+      {isReview ? (
+        <div
           style={{
-            color: "var(--orange)",
-            fontWeight: 700,
-            marginRight: 4,
+            background: "var(--cream)",
+            border: "1px solid var(--hair)",
+            borderRadius: 12,
+            padding: "16px 18px",
+            fontSize: "clamp(14.5px, 2vw, 15.5px)",
+            lineHeight: 1.5,
+            color: "var(--ink)",
+            whiteSpace: "pre-wrap",
+            fontWeight: 500,
           }}
         >
-          {current + 1}.
-        </span>
-        {q.text}
-      </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        {q.answers.map((opt: Answer, i: number) => {
-          const isSel = selected === i;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => pick(i)}
-              style={{
-                appearance: "none",
-                textAlign: "left",
-                cursor: "pointer",
-                width: "100%",
-                border: isSel ? "2px solid var(--orange)" : "1px solid var(--hair)",
-                background: isSel ? "var(--orange-tint)" : "var(--surface)",
-                borderRadius: 14,
-                padding: isSel ? "13px 17px" : "14px 18px",
-                fontSize: "clamp(14.5px, 2vw, 15.5px)",
-                fontWeight: 500,
-                color: "var(--ink)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                boxShadow: isSel ? "0 0 0 4px rgba(226,88,34,0.10)" : "none",
-                transition: "all .15s",
-              }}
-            >
-              <span>{opt.text}</span>
-              {isSel && (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M5 12.5l4.5 4.5L19 7.5"
-                    stroke="var(--orange)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div
-        style={{
-          marginTop: 22,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Dots total={total} current={current} />
-        {current > 0 && forcedStep == null && (
-          <button
-            type="button"
-            onClick={back}
+          {reviewMessage}
+        </div>
+      ) : (
+        <>
+          <div
             style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--muted)",
-              fontSize: 13,
-              padding: 4,
+              fontSize: "clamp(15px, 2.4vw, 17px)",
+              color: "var(--ink)",
+              marginBottom: 14,
+              fontWeight: 600,
+              letterSpacing: "-0.005em",
             }}
           >
-            ← Back
-          </button>
-        )}
-      </div>
+            <span
+              style={{
+                color: "var(--orange)",
+                fontWeight: 700,
+                marginRight: 4,
+              }}
+            >
+              {(currentIdx as number) + 1}.
+            </span>
+            {q!.text}
+          </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {q!.answers.map((opt: Answer, i: number) => {
+              const isSel = selected === i;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => pick(i)}
+                  style={{
+                    appearance: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    width: "100%",
+                    border: isSel ? "2px solid var(--orange)" : "1px solid var(--hair)",
+                    background: isSel ? "var(--orange-tint)" : "var(--surface)",
+                    borderRadius: 14,
+                    padding: isSel ? "13px 17px" : "14px 18px",
+                    fontSize: "clamp(14.5px, 2vw, 15.5px)",
+                    fontWeight: 500,
+                    color: "var(--ink)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    boxShadow: isSel ? "0 0 0 4px rgba(226,88,34,0.10)" : "none",
+                    transition: "all .15s",
+                  }}
+                >
+                  <span>{opt.text}</span>
+                  {isSel && (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M5 12.5l4.5 4.5L19 7.5"
+                        stroke="var(--orange)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
 
-      <button
-        type="button"
-        onClick={advanceOrSubmit}
-        disabled={!hasPick}
-        style={{
-          marginTop: 18,
-          width: "100%",
-          background: !hasPick
-            ? "var(--orange)"
-            : isLast
-              ? "var(--green)"
-              : "var(--orange)",
-          color: "#fff",
-          border: "none",
-          padding: "clamp(15px, 3vw, 18px)",
-          borderRadius: 14,
-          fontSize: "clamp(15px, 2.2vw, 17px)",
-          fontWeight: 700,
-          letterSpacing: "-0.005em",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 10,
-          opacity: !hasPick ? 0.55 : 1,
-          boxShadow:
-            isLast && hasPick
-              ? "0 10px 24px -10px rgba(37,211,102,0.55)"
-              : "0 8px 20px -10px rgba(226,88,34,0.45)",
-          cursor: hasPick ? "pointer" : "not-allowed",
-        }}
-      >
-        <WhatsAppGlyph size={20} color="#fff" />
-        {!hasPick
-          ? "Answer to continue"
-          : isLast
-            ? "Open WhatsApp"
-            : "Continue"}
-      </button>
+      {/* Question-state footer: progress dots + inline back link.
+          Review state replaces this with the green CTA + a centered back
+          link below it. */}
+      {!isReview && (
+        <div
+          style={{
+            marginTop: 22,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Dots total={total} current={currentIdx as number} />
+          {(currentIdx as number) > 0 && !isPreview && (
+            <button
+              type="button"
+              onClick={back}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted)",
+                fontSize: 13,
+                padding: 4,
+                cursor: "pointer",
+              }}
+            >
+              ← Back
+            </button>
+          )}
+        </div>
+      )}
+
+      {isReview && (
+        <button
+          type="button"
+          onClick={submit}
+          style={{
+            marginTop: 22,
+            width: "100%",
+            background: "var(--green)",
+            color: "#fff",
+            border: "none",
+            padding: "clamp(15px, 3vw, 18px)",
+            borderRadius: 14,
+            fontSize: "clamp(15px, 2.2vw, 17px)",
+            fontWeight: 700,
+            letterSpacing: "-0.005em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            boxShadow: "0 10px 24px -10px rgba(37,211,102,0.55)",
+            cursor: "pointer",
+          }}
+        >
+          <WhatsAppGlyph size={20} color="#fff" />
+          Open WhatsApp
+        </button>
+      )}
 
       <div
         style={{
@@ -283,6 +359,25 @@ export default function FormShell({
       >
         Your message will be ready, just hit send.
       </div>
+
+      {isReview && !isPreview && (
+        <div style={{ textAlign: "center", marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={back}
+            style={{
+              background: "transparent",
+              border: "none",
+              fontSize: 13,
+              color: "var(--muted)",
+              cursor: "pointer",
+              padding: 4,
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+      )}
 
       {onSkip && (
         <div style={{ textAlign: "center", marginTop: 14 }}>
