@@ -34,7 +34,7 @@ export default function PublicForm() {
         background: "var(--cream)",
         display: "grid",
         placeItems: "center",
-        padding: "32px 16px",
+        padding: "clamp(16px, 4vw, 32px) clamp(12px, 4vw, 16px)",
       }}
     >
       {status === "loading" && <Centered>Loading…</Centered>}

@@ -118,6 +118,11 @@ type PreviewStep = "q1" | "q2" | "q3" | "out";
 export default function OperatorConfig() {
   const nav = useNavigate();
   const isMobile = useMatchesQuery("(max-width: 960px)");
+  // isNarrow drives the deeper mobile treatment: BrandStrip fields stack,
+  // answer rows stack inside a card with the snippet labelled, and the
+  // header action buttons move into a fixed bottom bar so they're always
+  // tappable while scrolling.
+  const isNarrow = useMatchesQuery("(max-width: 720px)");
 
   const [existing, setExisting] = useState<WidgetResponse | null>(null);
   const [draft, setDraft] = useState<DraftWidget>(() => buildStarter());
@@ -256,6 +261,60 @@ export default function OperatorConfig() {
     nav("/login");
   }
 
+  // Inline helper (not a React component) — returns the Copy/Save action
+  // pair as a fragment so it can be dropped into the desktop header
+  // (stretched=false) and the mobile fixed bottom bar (stretched=true,
+  // where each button takes equal width via flex: 1). Defined as a plain
+  // function rather than a component so React doesn't see a new component
+  // type on every parent render.
+  function renderActionButtons(stretched: boolean) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={copyPublicLink}
+          disabled={!draft.slug}
+          aria-live="polite"
+          style={{
+            height: 40,
+            padding: "0 16px",
+            borderRadius: 12,
+            background: copied ? "var(--cream)" : "transparent",
+            border: copied ? "1px solid var(--green)" : "1px solid var(--hair)",
+            color: copied ? "var(--green-d)" : "var(--ink-2)",
+            fontSize: 13.5,
+            fontWeight: 600,
+            opacity: draft.slug ? 1 : 0.5,
+            cursor: draft.slug ? "pointer" : "not-allowed",
+            transition: "background .15s, border-color .15s, color .15s",
+            flex: stretched ? 1 : "none",
+          }}
+        >
+          {copied ? "Copied" : "Copy public link"}
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={!canSave}
+          style={{
+            height: 40,
+            padding: "0 18px",
+            borderRadius: 12,
+            background: canSave ? "var(--ink)" : "var(--cream-2)",
+            color: canSave ? "var(--cream)" : "var(--muted)",
+            border: "none",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: canSave ? "pointer" : "not-allowed",
+            flex: stretched ? 1 : "none",
+          }}
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+      </>
+    );
+  }
+
   if (loading) {
     return (
       <div
@@ -335,47 +394,9 @@ export default function OperatorConfig() {
             </p>
           )}
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            type="button"
-            onClick={copyPublicLink}
-            disabled={!draft.slug}
-            aria-live="polite"
-            style={{
-              height: 40,
-              padding: "0 16px",
-              borderRadius: 12,
-              background: copied ? "var(--cream)" : "transparent",
-              border: copied ? "1px solid var(--green)" : "1px solid var(--hair)",
-              color: copied ? "var(--green-d)" : "var(--ink-2)",
-              fontSize: 13.5,
-              fontWeight: 600,
-              opacity: draft.slug ? 1 : 0.5,
-              cursor: draft.slug ? "pointer" : "not-allowed",
-              transition: "background .15s, border-color .15s, color .15s",
-            }}
-          >
-            {copied ? "Copied" : "Copy public link"}
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!canSave}
-            style={{
-              height: 40,
-              padding: "0 18px",
-              borderRadius: 12,
-              background: canSave ? "var(--ink)" : "var(--cream-2)",
-              color: canSave ? "var(--cream)" : "var(--muted)",
-              border: "none",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: canSave ? "pointer" : "not-allowed",
-            }}
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
+        {!isNarrow && (
+          <div style={{ display: "flex", gap: 10 }}>{renderActionButtons(false)}</div>
+        )}
       </div>
 
       {!existing && (
@@ -468,7 +489,11 @@ export default function OperatorConfig() {
       <div
         style={{
           flex: 1,
-          padding: isMobile ? "12px 16px 28px" : "12px 28px 28px",
+          padding: isNarrow
+            ? "12px 16px 96px"
+            : isMobile
+              ? "12px 16px 28px"
+              : "12px 28px 28px",
           display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "1.45fr 0.95fr",
           gap: isMobile ? 16 : 22,
@@ -483,6 +508,7 @@ export default function OperatorConfig() {
             slugTaken={slugTaken}
             setSlugTaken={setSlugTaken}
             onTogglePause={togglePause}
+            isNarrow={isNarrow}
           />
         )}
         {(!isMobile || mobileTab === "preview") && (
@@ -494,6 +520,27 @@ export default function OperatorConfig() {
           />
         )}
       </div>
+
+      {isNarrow && (
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "var(--surface)",
+            borderTop: "1px solid var(--hair)",
+            padding: "12px 16px",
+            paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+            display: "flex",
+            gap: 10,
+            boxShadow: "0 -4px 20px -8px rgba(42,37,32,0.12)",
+            zIndex: 5,
+          }}
+        >
+          {renderActionButtons(true)}
+        </div>
+      )}
 
       {showPauseModal && (
         <PauseModal onCancel={() => setShowPauseModal(false)} onConfirm={confirmPause} />
@@ -564,6 +611,7 @@ function EditColumn({
   slugTaken,
   setSlugTaken,
   onTogglePause,
+  isNarrow,
 }: {
   draft: DraftWidget;
   setDraft: (d: DraftWidget | ((prev: DraftWidget) => DraftWidget)) => void;
@@ -571,6 +619,7 @@ function EditColumn({
   slugTaken: boolean;
   setSlugTaken: (b: boolean) => void;
   onTogglePause: () => void;
+  isNarrow: boolean;
 }) {
   const slugValid = SlugSchema.safeParse(draft.slug).success;
   const numberValid = WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success;
@@ -582,10 +631,10 @@ function EditColumn({
           background: "var(--surface)",
           border: "1px solid var(--hair)",
           borderRadius: 14,
-          padding: "18px 22px",
+          padding: isNarrow ? "16px 16px" : "18px 22px",
           display: "grid",
-          gridTemplateColumns: "1fr 1.4fr 0.9fr",
-          gap: 24,
+          gridTemplateColumns: isNarrow ? "1fr" : "1fr 1.4fr 0.9fr",
+          gap: isNarrow ? 14 : 24,
           alignItems: "start",
         }}
       >
@@ -672,6 +721,7 @@ function EditColumn({
           key={qi}
           num={qi + 1}
           q={q}
+          isNarrow={isNarrow}
           canRemove={draft.questions.length > 1}
           onChange={(next) =>
             setDraft((d) => {
@@ -921,6 +971,7 @@ function QuestionBuilder({
   onChange,
   onRemove,
   onMove,
+  isNarrow,
 }: {
   num: number;
   q: Question;
@@ -928,6 +979,7 @@ function QuestionBuilder({
   onChange: (q: Question) => void;
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
+  isNarrow: boolean;
 }) {
   return (
     <div
@@ -935,7 +987,7 @@ function QuestionBuilder({
         background: "var(--surface)",
         border: "1px solid var(--hair)",
         borderRadius: 16,
-        padding: 22,
+        padding: isNarrow ? "18px 16px" : 22,
         position: "relative",
       }}
     >
@@ -981,34 +1033,28 @@ function QuestionBuilder({
       />
 
       <div style={{ marginTop: 16 }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.05fr 1.4fr auto",
-            gap: 10,
-            padding: "0 6px 8px",
-            fontSize: 11,
-            color: "var(--muted)",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            fontWeight: 600,
-          }}
-        >
-          <span>Answer label</span>
-          <span>Adds to message</span>
-          <span />
-        </div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {q.answers.map((a: Answer, ai: number) => (
-            <div
-              key={ai}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.05fr 1.4fr auto",
-                gap: 10,
-                alignItems: "center",
-              }}
-            >
+        {!isNarrow && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.05fr 1.4fr auto",
+              gap: 10,
+              padding: "0 6px 8px",
+              fontSize: 11,
+              color: "var(--muted)",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+            }}
+          >
+            <span>Answer label</span>
+            <span>Adds to message</span>
+            <span />
+          </div>
+        )}
+        <div style={{ display: "grid", gap: isNarrow ? 14 : 8 }}>
+          {q.answers.map((a: Answer, ai: number) => {
+            const labelInput = (
               <input
                 value={a.text}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -1025,8 +1071,11 @@ function QuestionBuilder({
                   fontSize: 13.5,
                   fontWeight: 500,
                   outline: "none",
+                  width: "100%",
                 }}
               />
+            );
+            const snippetInput = (
               <input
                 value={a.snippet}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -1044,8 +1093,11 @@ function QuestionBuilder({
                   fontFamily: "var(--font-mono)",
                   color: "var(--ink-2)",
                   outline: "none",
+                  width: "100%",
                 }}
               />
+            );
+            const removeBtn = (
               <button
                 type="button"
                 onClick={() => {
@@ -1065,12 +1117,70 @@ function QuestionBuilder({
                   fontSize: 16,
                   cursor: q.answers.length <= 2 ? "not-allowed" : "pointer",
                   opacity: q.answers.length <= 2 ? 0.4 : 1,
+                  flexShrink: 0,
                 }}
               >
                 ×
               </button>
-            </div>
-          ))}
+            );
+
+            if (isNarrow) {
+              // Stack each answer's label above its snippet, with a small
+              // sublabel between them. A 2px hair-coloured left border
+              // visually pairs the two inputs as one answer.
+              return (
+                <div
+                  key={ai}
+                  style={{
+                    borderLeft: "2px solid var(--hair-2)",
+                    paddingLeft: 12,
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>{labelInput}</div>
+                    {removeBtn}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "var(--muted)",
+                      marginTop: 2,
+                    }}
+                  >
+                    Adds to message
+                  </div>
+                  {snippetInput}
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={ai}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.05fr 1.4fr auto",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                {labelInput}
+                {snippetInput}
+                {removeBtn}
+              </div>
+            );
+          })}
         </div>
         {q.answers.length < 4 && (
           <button
