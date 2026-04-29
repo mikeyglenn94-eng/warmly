@@ -78,4 +78,19 @@ app.listen(port, () => {
   } else {
     console.log(`  dashboard not built; API-only mode`);
   }
+  // Log the database host (no credentials) so we can verify which Neon
+  // instance / branch the deployed process is actually connected to —
+  // takes the guesswork out of "did the schema push land on the same
+  // database the app is running against?"
+  const dbUrl = process.env["DATABASE_URL"];
+  if (dbUrl) {
+    try {
+      const u = new URL(dbUrl);
+      console.log(`  database host: ${u.hostname}`);
+    } catch {
+      console.log("  database host: <DATABASE_URL set but unparseable>");
+    }
+  } else {
+    console.log("  database host: <DATABASE_URL not set>");
+  }
 });
