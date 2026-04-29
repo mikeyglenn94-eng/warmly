@@ -157,6 +157,7 @@ router.post(
 router.post("/billing/webhook", async (req: Request, res: Response) => {
   const sig = req.headers["stripe-signature"];
   if (typeof sig !== "string") {
+    console.warn("[webhook] missing stripe-signature header");
     res.status(400).send("Missing stripe-signature header");
     return;
   }
@@ -170,9 +171,12 @@ router.post("/billing/webhook", async (req: Request, res: Response) => {
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Invalid signature";
+    console.error("[webhook] signature verification failed:", msg);
     res.status(400).send(`Webhook signature verification failed: ${msg}`);
     return;
   }
+
+  console.log(`[webhook] received ${event.type} (${event.id})`);
 
   try {
     switch (event.type) {
@@ -184,30 +188,44 @@ router.post("/billing/webhook", async (req: Request, res: Response) => {
           typeof session.subscription === "string"
             ? session.subscription
             : session.subscription?.id;
+        console.log(
+          `[webhook] checkout.session.completed customer=${customerId ?? "none"} subscription=${subscriptionId ?? "none"}`,
+        );
         if (customerId && subscriptionId) {
-          // Pull the subscription so we have status + current_period_end.
           const sub = await stripe().subscriptions.retrieve(subscriptionId);
           await applySubscription(customerId, sub);
+        } else {
+          console.warn("[webhook] checkout.session.completed missing customer or subscription");
         }
         break;
       }
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+        console.log(
+          `[webhook] customer.subscription.updated customer=${customerId} status=${sub.status}`,
+        );
         await applySubscription(customerId, sub);
         break;
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-        await db()
+        console.log(`[webhook] customer.subscription.deleted customer=${customerId}`);
+        const result = await db()
           .update(usersTable)
           .set({
             subscriptionStatus: "canceled",
             stripeSubscriptionId: sub.id,
             updatedAt: new Date(),
           })
-          .where(eq(usersTable.stripeCustomerId, customerId));
+          .where(eq(usersTable.stripeCustomerId, customerId))
+          .returning({ id: usersTable.id });
+        if (result.length === 0) {
+          console.warn(
+            `[webhook] subscription.deleted matched 0 users for customer ${customerId}`,
+          );
+        }
         break;
       }
       case "invoice.payment_failed": {
@@ -215,21 +233,30 @@ router.post("/billing/webhook", async (req: Request, res: Response) => {
         const customerId =
           typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
         if (customerId) {
-          await db()
+          console.log(`[webhook] invoice.payment_failed customer=${customerId}`);
+          const result = await db()
             .update(usersTable)
             .set({ subscriptionStatus: "past_due", updatedAt: new Date() })
-            .where(eq(usersTable.stripeCustomerId, customerId));
+            .where(eq(usersTable.stripeCustomerId, customerId))
+            .returning({ id: usersTable.id });
+          if (result.length === 0) {
+            console.warn(
+              `[webhook] payment_failed matched 0 users for customer ${customerId}`,
+            );
+          }
+        } else {
+          console.warn("[webhook] invoice.payment_failed missing customer id");
         }
         break;
       }
       default:
-        // Ignore other events for v1.
+        console.log(`[webhook] ignored event ${event.type}`);
         break;
     }
   } catch (err) {
     // Log but still 200 so Stripe doesn't retry forever; the next event
     // will resync state if this one had a transient failure.
-    console.error("Webhook handler error:", err);
+    console.error(`[webhook] handler failed for ${event.type}:`, err);
   }
 
   res.json({ received: true });
@@ -238,15 +265,57 @@ router.post("/billing/webhook", async (req: Request, res: Response) => {
 async function applySubscription(customerId: string, sub: Stripe.Subscription): Promise<void> {
   const status = normaliseStatus(sub.status);
   const periodEnd = subscriptionPeriodEnd(sub);
-  await db()
+  const updates = {
+    stripeSubscriptionId: sub.id,
+    subscriptionStatus: status,
+    planActiveUntil: periodEnd,
+    updatedAt: new Date(),
+  };
+
+  // Primary lookup: by stripeCustomerId. This is the path for the normal
+  // flow where create-checkout-session persisted the id before the user
+  // ever paid.
+  let result = await db()
     .update(usersTable)
-    .set({
-      stripeSubscriptionId: sub.id,
-      subscriptionStatus: status,
-      planActiveUntil: periodEnd,
-      updatedAt: new Date(),
-    })
-    .where(eq(usersTable.stripeCustomerId, customerId));
+    .set(updates)
+    .where(eq(usersTable.stripeCustomerId, customerId))
+    .returning({ id: usersTable.id });
+
+  if (result.length > 0) {
+    console.log(
+      `[webhook] applied subscription to user ${result[0]!.id} status=${status} periodEnd=${periodEnd?.toISOString() ?? "null"}`,
+    );
+    return;
+  }
+
+  // Fallback: look up by subscription metadata.userId (set when
+  // create-checkout-session creates the session). Recovers from cases
+  // where the stripeCustomerId wasn't persisted — e.g. the DB write
+  // landed in a different transaction that rolled back, or an earlier
+  // failed attempt left the customer/user mapping out of sync. Persists
+  // the customerId on the row so subsequent webhooks hit the primary
+  // path.
+  const metaUserId = sub.metadata?.["userId"];
+  if (metaUserId) {
+    const userId = Number(metaUserId);
+    if (Number.isFinite(userId) && userId > 0) {
+      result = await db()
+        .update(usersTable)
+        .set({ ...updates, stripeCustomerId: customerId })
+        .where(eq(usersTable.id, userId))
+        .returning({ id: usersTable.id });
+      if (result.length > 0) {
+        console.log(
+          `[webhook] applied subscription via metadata.userId fallback (user=${userId} customer=${customerId} status=${status})`,
+        );
+        return;
+      }
+    }
+  }
+
+  console.error(
+    `[webhook] could not match user for customer ${customerId} (sub ${sub.id}) — neither stripeCustomerId nor metadata.userId matched any row`,
+  );
 }
 
 function normaliseStatus(s: Stripe.Subscription.Status): string {
