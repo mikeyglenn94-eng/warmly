@@ -132,7 +132,12 @@ export default function OperatorConfig() {
   const [slugTaken, setSlugTaken] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [previewStep, setPreviewStep] = useState<PreviewStep>("q2");
-  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  // Default to Preview so first-time users see what the form does before
+  // editing. Returning users get flipped to Edit once the load completes
+  // and existing turns out to be non-null. The didInitTab ref makes that
+  // flip a one-shot — anything the user taps after never gets overridden.
+  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("preview");
+  const didInitTab = useRef(false);
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
 
@@ -159,6 +164,17 @@ export default function OperatorConfig() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // One-shot tab init: once loading completes, returning users (existing
+  // widget on file) jump to Edit. First-time users keep the Preview
+  // default. Guarded by a ref so subsequent saves (which set existing
+  // from null to non-null) don't yank an editing user back to Preview.
+  useEffect(() => {
+    if (loading) return;
+    if (didInitTab.current) return;
+    didInitTab.current = true;
+    if (existing) setMobileTab("edit");
+  }, [loading, existing]);
 
   const dirty = useMemo(() => {
     if (!existing) return true;
