@@ -5,6 +5,7 @@ import Signup from "./pages/Signup";
 import Admin from "./pages/Admin";
 import OperatorConfig from "./pages/OperatorConfig";
 import PublicForm from "./pages/PublicForm";
+import Upgrade from "./pages/Upgrade";
 
 export default function App() {
   return (
@@ -17,6 +18,14 @@ export default function App() {
         element={
           <RequireAuth>
             <OperatorConfig />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/app/upgrade"
+        element={
+          <RequireAuth>
+            <Upgrade />
           </RequireAuth>
         }
       />

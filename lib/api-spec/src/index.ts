@@ -83,6 +83,43 @@ export const AuthResponseSchema = z.object({
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
+// ── /me ────────────────────────────────────────────────────────────────────
+// Surfaces only what the dashboard needs to gate UI. Stripe customer/sub
+// IDs stay server-side.
+
+export const SubscriptionStatusSchema = z
+  .enum(["active", "past_due", "canceled"])
+  .nullable();
+export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
+
+export const MeResponseSchema = z.object({
+  id: z.number().int().positive(),
+  email: EmailSchema,
+  isPaid: z.boolean(),
+  subscriptionStatus: SubscriptionStatusSchema,
+  planActiveUntil: z.string().nullable(),
+});
+export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+// ── Billing ────────────────────────────────────────────────────────────────
+// returnUrl is used to compose Stripe success_url / cancel_url so the
+// caller controls which dashboard origin the user lands back on.
+
+export const CreateCheckoutRequestSchema = z.object({
+  returnUrl: z.string().url(),
+});
+export type CreateCheckoutRequest = z.infer<typeof CreateCheckoutRequestSchema>;
+
+export const CreatePortalRequestSchema = z.object({
+  returnUrl: z.string().url(),
+});
+export type CreatePortalRequest = z.infer<typeof CreatePortalRequestSchema>;
+
+export const StripeRedirectResponseSchema = z.object({
+  url: z.string().url(),
+});
+export type StripeRedirectResponse = z.infer<typeof StripeRedirectResponseSchema>;
+
 // ── Widget API request/response shapes ─────────────────────────────────────
 
 export const CreateWidgetRequestSchema = WidgetConfigSchema.extend({

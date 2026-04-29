@@ -8,7 +8,9 @@ import { buildWaUrl, renderMessage, SKIP_FALLBACK_MESSAGE } from "../lib/wa-mess
 export default function PublicForm() {
   const { slug } = useParams<{ slug: string }>();
   const [config, setConfig] = useState<PublicWidgetResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "not-found" | "error">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "ok" | "not-found" | "not-active" | "error"
+  >("loading");
 
   useEffect(() => {
     if (!slug) return;
@@ -21,6 +23,9 @@ export default function PublicForm() {
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
           setStatus("not-found");
+        } else if (err instanceof ApiError && err.status === 402) {
+          // Operator hasn't subscribed yet — public form isn't serving.
+          setStatus("not-active");
         } else {
           setStatus("error");
         }
@@ -43,6 +48,13 @@ export default function PublicForm() {
         <PageMessage
           title="Form not found"
           body="This link doesn't lead anywhere. Check the spelling or ask the person who shared it with you."
+        />
+      )}
+
+      {status === "not-active" && (
+        <PageMessage
+          title="This form isn't live yet"
+          body="The owner is finalising things. Try again later."
         />
       )}
 

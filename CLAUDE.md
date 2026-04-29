@@ -58,7 +58,7 @@ Per-package:
 
 ## Deployment
 
-**Single-origin in production.** After `pnpm --filter @warmly/api-server build`, the api-server serves the dashboard from `artifacts/api-server/public` alongside the API. A catch-all middleware sends `index.html` for any GET that isn't `/health`, `/auth/*`, or `/widgets/*`, so React Router handles client-side routing. Add new top-level API prefixes to `isApiPath()` in `artifacts/api-server/src/index.ts` so they don't get swallowed by the SPA fallback.
+**Single-origin in production.** After `pnpm --filter @warmly/api-server build`, the api-server serves the dashboard from `artifacts/api-server/public` alongside the API. A catch-all middleware sends `index.html` for any GET that isn't `/health`, `/auth/*`, `/widgets/*`, `/admin/*`, `/me`, or `/billing/*`, so React Router handles client-side routing. Add new top-level API prefixes to `isApiPath()` in `artifacts/api-server/src/index.ts` so they don't get swallowed by the SPA fallback.
 
 The dashboard's API client defaults to **same-origin** (empty base URL) when `VITE_API_URL` is unset — production needs no env-var gymnastics. Local dev with the Vite dev server is the only place `VITE_API_URL` matters; the example sets it to `http://localhost:3000`.
 
@@ -74,9 +74,25 @@ The dashboard's API client defaults to **same-origin** (empty base URL) when `VI
 | PUT | `/widgets/me` | Bearer | Replace widget config (409 on slug clash) |
 | PATCH | `/widgets/me` | Bearer | Partial update — currently `{ active: boolean }` for pause |
 | DELETE | `/widgets/me` | Bearer | Delete the widget |
-| GET | `/widgets/public/:slug` | — | Public read by slug (sanitised) |
+| GET | `/widgets/public/:slug` | — | Public read by slug (sanitised). Returns **402** if the operator isn't on a paid plan |
+| GET | `/me` | Bearer | Caller's user with `isPaid`, `subscriptionStatus`, `planActiveUntil` |
+| POST | `/billing/create-checkout-session` | Bearer | Stripe Checkout (subscription mode); returns `{ url }` |
+| POST | `/billing/create-portal-session` | Bearer | Stripe Billing Portal (cancel / update card); returns `{ url }` |
+| POST | `/billing/webhook` | Stripe-signed | Subscription lifecycle events (raw body, signature verified) |
 
 Ownership leaks are avoided by returning 404 (not 403) on widget routes when the caller is authenticated but isn't the owner.
+
+## Billing
+
+**Free vs paid:** building, editing, and previewing the form are free. The public form at `/m/:slug` only serves once the operator's subscription is active (£8/month). Server-side, `GET /widgets/public/:slug` joins `users` and returns `402` if `isPaid(user) === false`. Client-side, the dashboard fetches `/me` on `/app` mount and shows a "preview mode" banner + redirects "Copy public link" to `/app/upgrade` until the user pays.
+
+**Source of truth for billing state:** Stripe webhooks. `subscriptionStatus` and `planActiveUntil` on `users` are written only by `/billing/webhook` in response to `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`. The `?upgrade=success` query param is just a UX hint; the dashboard refetches `/me` a couple of times after that lands so the banner clears once the webhook arrives.
+
+**Webhook plumbing:** `/billing/webhook` is mounted with `express.raw({ type: 'application/json' })` *before* the global `express.json()` middleware in `src/index.ts`, so the Stripe SDK can verify the signature against the raw bytes.
+
+**isPaid logic** (server `src/lib/billing.ts`): `subscriptionStatus === 'active'` OR (`'past_due'` AND `planActiveUntil > now`). `trialing` is normalised to `active`; `incomplete` and `unpaid` to `past_due`; `canceled` and `incomplete_expired` to `canceled`.
+
+**Required env vars** on the api-server: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`. Statement descriptor for subscriptions is configured in the Stripe dashboard at Settings → Public details, not per-session — set it to "WARMLY" there.
 
 ## Conventions
 

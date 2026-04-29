@@ -7,11 +7,19 @@ import cors from "cors";
 import authRouter from "./routes/auth";
 import widgetsRouter from "./routes/widgets";
 import adminRouter from "./routes/admin";
+import meRouter from "./routes/me";
+import billingRouter from "./routes/billing";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.use(cors());
+
+// Stripe webhook signature verification needs the raw request body.
+// Mount the raw parser scoped to /billing/webhook BEFORE the global
+// express.json() middleware. body-parser sets req._body once parsed, so
+// json() will skip the same request and pass the Buffer through.
+app.use("/billing/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -21,6 +29,8 @@ app.get("/health", (_req, res) => {
 app.use(authRouter);
 app.use(widgetsRouter);
 app.use(adminRouter);
+app.use(meRouter);
+app.use(billingRouter);
 
 // ── Serve the built dashboard ──────────────────────────────────────────────
 // In production (after `pnpm --filter @warmly/api-server run build`) the
@@ -45,7 +55,9 @@ function isApiPath(reqPath: Request["path"]): boolean {
     reqPath.startsWith("/widgets/") ||
     // /admin alone is a SPA route (the dashboard's Admin page); only
     // /admin/* sub-paths belong to the API.
-    reqPath.startsWith("/admin/")
+    reqPath.startsWith("/admin/") ||
+    reqPath === "/me" ||
+    reqPath.startsWith("/billing/")
   );
 }
 

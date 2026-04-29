@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { widgetsTable, type Widget } from "@warmly/db";
+import { usersTable, widgetsTable, type Widget } from "@warmly/db";
 import {
   CreateWidgetRequestSchema,
   UpdateWidgetRequestSchema,
@@ -10,6 +10,7 @@ import {
   type PublicWidgetResponse,
 } from "@warmly/api-spec";
 import { db } from "../db";
+import { isPaid } from "../lib/billing";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -53,7 +54,9 @@ async function findWidgetByUserId(userId: number): Promise<Widget | null> {
 
 // ── Public read by slug (no auth) ──────────────────────────────────────────
 // Defined BEFORE /widgets/me so /widgets/public/:slug isn't matched against
-// the more general /widgets/me path.
+// the more general /widgets/me path. Joins users so we can gate on the
+// operator's billing status — unpaid operators get a 402 the dashboard
+// renders as "form isn't live yet".
 router.get("/widgets/public/:slug", async (req, res) => {
   const slug = req.params["slug"];
   if (!slug) {
@@ -61,15 +64,28 @@ router.get("/widgets/public/:slug", async (req, res) => {
     return;
   }
   const [row] = await db()
-    .select()
+    .select({
+      widget: widgetsTable,
+      ownerStatus: usersTable.subscriptionStatus,
+      ownerActiveUntil: usersTable.planActiveUntil,
+    })
     .from(widgetsTable)
+    .innerJoin(usersTable, eq(widgetsTable.userId, usersTable.id))
     .where(eq(widgetsTable.slug, slug))
     .limit(1);
   if (!row) {
     res.status(404).json({ error: "Widget not found" });
     return;
   }
-  res.json(toPublicResponse(row));
+  const ownerPaid = isPaid({
+    subscriptionStatus: row.ownerStatus,
+    planActiveUntil: row.ownerActiveUntil,
+  });
+  if (!ownerPaid) {
+    res.status(402).json({ error: "Form not yet active" });
+    return;
+  }
+  res.json(toPublicResponse(row.widget));
 });
 
 // ── /widgets/me — caller's single widget ───────────────────────────────────

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type {
   Answer,
   ButtonPosition,
+  MeResponse,
   Question,
+  StripeRedirectResponse,
   WidgetResponse,
 } from "@warmly/api-spec";
 import { CreateWidgetRequestSchema, SlugSchema, WhatsAppNumberSchema } from "@warmly/api-spec";
@@ -117,6 +119,7 @@ type PreviewStep = "q1" | "q2" | "q3" | "out";
 
 export default function OperatorConfig() {
   const nav = useNavigate();
+  const loc = useLocation();
   const isMobile = useMatchesQuery("(max-width: 960px)");
   // isNarrow drives the deeper mobile treatment: BrandStrip fields stack,
   // answer rows stack inside a card with the snippet labelled, and the
@@ -141,6 +144,16 @@ export default function OperatorConfig() {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
 
+  // Billing state. me is null until /me resolves; treat unknown as
+  // "preview mode" (banner shown, copy gated) to be safe.
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const isPaid = me?.isPaid ?? false;
+
+  // Success banner shown briefly after returning from Stripe Checkout via
+  // ?upgrade=success. The query param is stripped from the URL after read
+  // so a refresh doesn't re-show it.
+  const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
+
   useEffect(() => {
     return () => {
       if (copiedTimerRef.current != null) {
@@ -148,6 +161,37 @@ export default function OperatorConfig() {
       }
     };
   }, []);
+
+  function refetchMe(): Promise<void> {
+    return api<MeResponse>("/me", { auth: true })
+      .then((m) => setMe(m))
+      .catch(() => undefined);
+  }
+
+  useEffect(() => {
+    refetchMe();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(loc.search);
+    if (params.get("upgrade") === "success") {
+      setShowUpgradeSuccess(true);
+      // Clean the URL so a refresh doesn't re-show the banner.
+      window.history.replaceState({}, "", loc.pathname);
+      // Webhook may take a beat to land — refetch /me a couple of times so
+      // the upgrade banner clears and the Copy button unlocks soon after.
+      refetchMe();
+      const t1 = window.setTimeout(refetchMe, 2000);
+      const t2 = window.setTimeout(refetchMe, 6000);
+      const t3 = window.setTimeout(() => setShowUpgradeSuccess(false), 8000);
+      return () => {
+        window.clearTimeout(t1);
+        window.clearTimeout(t2);
+        window.clearTimeout(t3);
+      };
+    }
+    return undefined;
+  }, [loc.search, loc.pathname]);
 
   useEffect(() => {
     api<WidgetResponse>("/widgets/me", { auth: true })
@@ -247,6 +291,12 @@ export default function OperatorConfig() {
 
   async function copyPublicLink() {
     if (!draft.slug) return;
+    // First-time publish path: unpaid users get bounced to /app/upgrade
+    // instead of seeing a copy that won't actually serve a live form.
+    if (!isPaid) {
+      nav("/app/upgrade");
+      return;
+    }
     const url = `${window.location.origin}/m/${draft.slug}`;
 
     let ok = false;
@@ -270,6 +320,21 @@ export default function OperatorConfig() {
       setCopied(false);
       copiedTimerRef.current = null;
     }, 2000);
+  }
+
+  async function openBillingPortal() {
+    try {
+      const res = await api<StripeRedirectResponse>("/billing/create-portal-session", {
+        method: "POST",
+        body: { returnUrl: `${window.location.origin}/app` },
+        auth: true,
+      });
+      window.location.assign(res.url);
+    } catch (err) {
+      setSaveError(
+        err instanceof ApiError ? err.message : "Could not open billing portal",
+      );
+    }
   }
 
   function logout() {
@@ -452,6 +517,98 @@ export default function OperatorConfig() {
         </div>
       )}
 
+      {showUpgradeSuccess && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <div
+            style={{
+              background: "rgba(37, 211, 102, 0.12)",
+              border: "1px solid var(--green)",
+              borderRadius: 12,
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--ink-2)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                background: "var(--green)",
+                color: "#fff",
+                padding: "3px 8px",
+                borderRadius: 6,
+              }}
+            >
+              You're live
+            </span>
+            <span>Share your link wherever your WhatsApp button goes.</span>
+          </div>
+        </div>
+      )}
+
+      {me && !isPaid && !showUpgradeSuccess && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <div
+            style={{
+              background: "var(--blue-soft)",
+              border: "1px solid var(--blue)",
+              borderRadius: 12,
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--ink-2)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                background: "var(--ink)",
+                color: "var(--cream)",
+                padding: "3px 8px",
+                borderRadius: 6,
+              }}
+            >
+              Preview mode
+            </span>
+            <span style={{ flex: 1, minWidth: 160 }}>
+              Form is in preview. Upgrade to make it live.
+            </span>
+            <button
+              type="button"
+              onClick={() => nav("/app/upgrade")}
+              style={{
+                height: 32,
+                padding: "0 12px",
+                borderRadius: 8,
+                background: "var(--orange)",
+                color: "#fff",
+                border: "none",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Upgrade →
+            </button>
+          </div>
+        </div>
+      )}
+
       {saveError && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
           <div
@@ -529,6 +686,8 @@ export default function OperatorConfig() {
             setSlugTaken={setSlugTaken}
             onTogglePause={togglePause}
             isNarrow={isNarrow}
+            isPaid={isPaid}
+            onManageBilling={openBillingPortal}
           />
         )}
         {(!isMobile || mobileTab === "preview") && (
@@ -632,6 +791,8 @@ function EditColumn({
   setSlugTaken,
   onTogglePause,
   isNarrow,
+  isPaid,
+  onManageBilling,
 }: {
   draft: DraftWidget;
   setDraft: (d: DraftWidget | ((prev: DraftWidget) => DraftWidget)) => void;
@@ -640,6 +801,8 @@ function EditColumn({
   setSlugTaken: (b: boolean) => void;
   onTogglePause: () => void;
   isNarrow: boolean;
+  isPaid: boolean;
+  onManageBilling: () => void;
 }) {
   const slugValid = SlugSchema.safeParse(draft.slug).success;
   const numberValid = WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success;
@@ -826,6 +989,33 @@ function EditColumn({
         onPosition={(p) => setDraft((d) => ({ ...d, buttonPosition: p }))}
         isNarrow={isNarrow}
       />
+
+      {isPaid && (
+        <div
+          style={{
+            textAlign: "right",
+            paddingTop: 4,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onManageBilling}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--muted)",
+              fontSize: 12.5,
+              fontWeight: 500,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
+              padding: 4,
+            }}
+          >
+            Manage billing
+          </button>
+        </div>
+      )}
     </div>
   );
 }
