@@ -363,7 +363,7 @@ export default function OperatorConfig() {
         <div>
           <h1
             style={{
-              fontSize: isMobile ? 20 : 24,
+              fontSize: isNarrow ? 18 : isMobile ? 20 : 24,
               fontWeight: 700,
               margin: 0,
               letterSpacing: "-0.02em",
@@ -373,10 +373,11 @@ export default function OperatorConfig() {
           </h1>
           <p
             style={{
-              fontSize: isMobile ? 13 : 13.5,
+              fontSize: isNarrow ? 12 : isMobile ? 13 : 13.5,
               color: "var(--muted)",
               margin: "4px 0 0",
               fontWeight: 500,
+              lineHeight: 1.45,
             }}
           >
             Three questions, one link. Replace your WhatsApp button with this and leads arrive with a message ready to send.
@@ -384,7 +385,7 @@ export default function OperatorConfig() {
           {isMobile && (
             <p
               style={{
-                fontSize: 12,
+                fontSize: isNarrow ? 11 : 12,
                 color: "var(--muted-2)",
                 margin: "6px 0 0",
                 fontWeight: 500,
@@ -495,7 +496,9 @@ export default function OperatorConfig() {
               ? "12px 16px 28px"
               : "12px 28px 28px",
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1.45fr 0.95fr",
+          gridTemplateColumns: isMobile
+            ? "minmax(0, 1fr)"
+            : "minmax(0, 1.45fr) minmax(0, 0.95fr)",
           gap: isMobile ? 16 : 22,
           alignItems: "start",
         }}
@@ -625,7 +628,13 @@ function EditColumn({
   const numberValid = WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success;
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr)",
+        gap: 16,
+      }}
+    >
       <div
         style={{
           background: "var(--surface)",
@@ -633,7 +642,12 @@ function EditColumn({
           borderRadius: 14,
           padding: isNarrow ? "16px 16px" : "18px 22px",
           display: "grid",
-          gridTemplateColumns: isNarrow ? "1fr" : "1fr 1.4fr 0.9fr",
+          // minmax(0, 1fr) lets columns shrink below their min-content
+          // (otherwise inputs with default size=20 force ~200px columns
+          // and overflow the card at narrow widths).
+          gridTemplateColumns: isNarrow
+            ? "minmax(0, 1fr)"
+            : "minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 0.9fr)",
           gap: isNarrow ? 14 : 24,
           alignItems: "start",
         }}
@@ -793,6 +807,7 @@ function EditColumn({
         position={draft.buttonPosition}
         onColour={(c) => setDraft((d) => ({ ...d, buttonColour: c }))}
         onPosition={(p) => setDraft((d) => ({ ...d, buttonPosition: p }))}
+        isNarrow={isNarrow}
       />
     </div>
   );
@@ -1037,7 +1052,7 @@ function QuestionBuilder({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.05fr 1.4fr auto",
+              gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1.4fr) auto",
               gap: 10,
               padding: "0 6px 8px",
               fontSize: 11,
@@ -1170,7 +1185,7 @@ function QuestionBuilder({
                 key={ai}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.05fr 1.4fr auto",
+                  gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1.4fr) auto",
                   gap: 10,
                   alignItems: "center",
                 }}
@@ -1222,14 +1237,15 @@ function MessageTemplateEditor({
   onChange: (v: string) => void;
   questionCount: number;
 }) {
-  const tokens = Array.from({ length: questionCount }, (_, i) => `{q${i + 1}}`);
+  const isNarrow = useMatchesQuery("(max-width: 720px)");
+  const tokens = Array.from({ length: questionCount }, (_, i: number) => `{q${i + 1}}`);
   return (
     <div
       style={{
         background: "var(--surface)",
         border: "1px solid var(--hair)",
         borderRadius: 16,
-        padding: 22,
+        padding: isNarrow ? "18px 16px" : 22,
       }}
     >
       <div
@@ -1307,11 +1323,13 @@ function StyleControls({
   position,
   onColour,
   onPosition,
+  isNarrow,
 }: {
   colour: string;
   position: ButtonPosition;
   onColour: (c: string) => void;
   onPosition: (p: ButtonPosition) => void;
+  isNarrow: boolean;
 }) {
   const swatches = [
     { c: "#25D366", name: "WhatsApp" },
@@ -1328,9 +1346,9 @@ function StyleControls({
         background: "var(--surface)",
         border: "1px solid var(--hair)",
         borderRadius: 16,
-        padding: 22,
+        padding: isNarrow ? "18px 16px" : 22,
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: isNarrow ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)",
         gap: 22,
       }}
     >
@@ -1545,10 +1563,13 @@ function PauseModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: 
 // ── Atoms ──────────────────────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
+  // Reduce ~9% on narrow viewports — uppercase labels feel oversized at
+  // 11px on phones with the surrounding card padding tightened.
+  const isNarrow = useMatchesQuery("(max-width: 720px)");
   return (
     <div
       style={{
-        fontSize: 11,
+        fontSize: isNarrow ? 10 : 11,
         fontWeight: 600,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
@@ -1642,6 +1663,11 @@ function Input({
     <div
       style={{
         height: bigText ? 48 : 42,
+        // Explicit width+minWidth so grid/flex parents don't size this
+        // by intrinsic content (which would respect the inner <input>'s
+        // ~200px min-content and overflow narrow viewports).
+        width: "100%",
+        minWidth: 0,
         border: showRing ? `2px solid ${ringColour}` : "1px solid var(--hair)",
         borderRadius: bigText ? 10 : 10,
         background: bigText ? "var(--cream)" : "var(--surface)",
@@ -1655,7 +1681,18 @@ function Input({
         boxShadow: showRing ? ringShadow : "none",
       }}
     >
-      {prefix && <span style={{ color: "var(--muted)", fontWeight: 400 }}>{prefix}</span>}
+      {prefix && (
+        <span
+          style={{
+            color: "var(--muted)",
+            fontWeight: 400,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {prefix}
+        </span>
+      )}
       <input
         value={value}
         placeholder={placeholder}
@@ -1665,6 +1702,7 @@ function Input({
         style={{
           flex: 1,
           minWidth: 0,
+          width: "100%",
           border: "none",
           outline: "none",
           background: "transparent",
