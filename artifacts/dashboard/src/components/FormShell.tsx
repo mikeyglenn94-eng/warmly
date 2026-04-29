@@ -2,6 +2,21 @@ import { useState } from "react";
 import type { Answer, Question } from "@warmly/api-spec";
 import WhatsAppGlyph from "./WhatsAppGlyph";
 
+// "One quick tap" / "Three quick taps". WidgetConfigSchema constrains
+// questions to 1–5; "A few quick taps" is just defensive fallback.
+const NUMBER_WORDS: Record<number, string> = {
+  1: "One",
+  2: "Two",
+  3: "Three",
+  4: "Four",
+  5: "Five",
+};
+function tapsCopy(n: number): string {
+  const word = NUMBER_WORDS[n] ?? "A few";
+  const noun = n === 1 ? "tap" : "taps";
+  return `${word} quick ${noun}`;
+}
+
 interface FormShellProps {
   questions: Question[];
   brandingEnabled?: boolean;
@@ -116,7 +131,7 @@ export default function FormShell({
           fontWeight: 500,
         }}
       >
-        Three quick taps and you'll be chatting on WhatsApp.
+        {tapsCopy(total)} and you'll be chatting on WhatsApp.
       </p>
 
       <div
