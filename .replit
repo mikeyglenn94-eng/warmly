@@ -1,0 +1,8 @@
+modules = ["nodejs-24", "postgresql-16"]
+run = "pnpm start"
+entrypoint = "artifacts/api-server/src/index.ts"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["pnpm", "run", "build"]
+run = ["pnpm", "run", "start"]

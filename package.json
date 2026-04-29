@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "preinstall": "node -e \"if (!String(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('Use pnpm instead'); process.exit(1); }\"",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm --filter @warmly/api-server run build",
+    "start": "pnpm --filter @warmly/api-server start",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --if-present run typecheck"
   },
