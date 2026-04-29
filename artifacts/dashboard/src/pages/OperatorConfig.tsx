@@ -320,9 +320,7 @@ export default function OperatorConfig() {
               fontWeight: 500,
             }}
           >
-            {existing
-              ? "Edit on the left, preview on the right."
-              : "Set your number and slug, build your form, hit save."}
+            Three questions, one link. Replace your WhatsApp button with this and leads arrive with a message ready to send.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
