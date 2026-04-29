@@ -362,6 +362,7 @@ export default function OperatorConfig() {
         display: "flex",
         flexDirection: "column",
         fontFamily: "var(--font-sans)",
+        overflowX: "hidden",
       }}
     >
       <TopBar onLogout={logout} />
@@ -842,6 +843,7 @@ function PreviewColumn({
   setPreviewStep: (s: PreviewStep) => void;
   previewMessage: string;
 }) {
+  const isNarrow = useMatchesQuery("(max-width: 720px)");
   const isOutput = previewStep === "out";
   const stepIdx =
     previewStep === "q1" ? 0 : previewStep === "q2" ? 1 : previewStep === "q3" ? 2 : 0;
@@ -878,7 +880,23 @@ function PreviewColumn({
       >
         {!isOutput ? (
           draft.questions.length > 0 ? (
-            <div style={{ transform: "scale(0.78)", transformOrigin: "center center" }}>
+            // Without an explicit width here, FormShell's `width: 100%`
+            // resolves against an unconstrained parent and ends up at its
+            // 520px maxWidth — wider than the preview cell and the
+            // viewport. The scale transform doesn't change layout box
+            // size, so the oversized wrapper would push body scrollWidth
+            // past the viewport. width:100%+maxWidth ties the wrapper to
+            // its grid cell. On narrow we skip the 0.78 scale entirely;
+            // the FormShell already fits the preview at its natural
+            // mobile sizing.
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 520,
+                transform: isNarrow ? "none" : "scale(0.78)",
+                transformOrigin: "center center",
+              }}
+            >
               <FormShell
                 questions={draft.questions}
                 brandingEnabled={draft.brandingEnabled}
