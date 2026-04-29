@@ -23,7 +23,20 @@ app.use("/billing/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  // Includes the database hostname (no credentials) so anyone can verify
+  // which Neon instance the deployed process is talking to without
+  // needing access to the Replit dashboard or deployment logs. Useful
+  // after redeploys when checking schema-push vs running-app alignment.
+  let dbHost: string | null = null;
+  const dbUrl = process.env["DATABASE_URL"];
+  if (dbUrl) {
+    try {
+      dbHost = new URL(dbUrl).hostname;
+    } catch {
+      dbHost = null;
+    }
+  }
+  res.json({ status: "ok", dbHost });
 });
 
 app.use(authRouter);
