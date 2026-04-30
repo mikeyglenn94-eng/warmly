@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { PublicWidgetResponse } from "@warmly/api-spec";
+import { ButlerSays } from "../components/Butler";
 import FormShell from "../components/FormShell";
 import { api, ApiError } from "../lib/api";
 import { buildWaUrl, renderMessage, SKIP_FALLBACK_MESSAGE } from "../lib/wa-message";
@@ -46,10 +47,23 @@ export default function PublicForm() {
       {status === "loading" && <Centered>Loading…</Centered>}
 
       {status === "not-found" && (
-        <PageMessage
-          title="Form not found"
-          body="This link doesn't lead anywhere. Check the spelling or ask the person who shared it with you."
-        />
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 460,
+            background: "var(--surface)",
+            border: "1px solid var(--hair-2)",
+            borderRadius: 20,
+            boxShadow: "var(--shadow-md)",
+            padding: "28px 24px 28px",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <ButlerSays layout="column" size={120} bubbleMaxWidth={400}>
+            I do beg Master's pardon, but this establishment appears to be… unavailable.
+          </ButlerSays>
+        </div>
       )}
 
       {status === "error" && (

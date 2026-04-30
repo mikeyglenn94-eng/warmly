@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { AuthResponse } from "@warmly/api-spec";
+import { ButlerSays } from "../components/Butler";
 import { api, ApiError } from "../lib/api";
 import { setToken } from "../lib/auth";
-import { AuthShell, Field, PrimaryButton, ErrorText, SwitchLink } from "./Login";
+import { AuthShell, ErrorText, Field, PrimaryButton, SwitchLink } from "./Login";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,8 @@ export default function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const nav = useNavigate();
+  const loc = useLocation();
+  const fromApp = new URLSearchParams(loc.search).get("from") === "app";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -28,6 +31,20 @@ export default function Signup() {
     } finally {
       setPending(false);
     }
+  }
+
+  if (fromApp) {
+    return (
+      <ButlerSignup
+        email={email}
+        password={password}
+        error={error}
+        pending={pending}
+        onEmail={setEmail}
+        onPassword={setPassword}
+        onSubmit={onSubmit}
+      />
+    );
   }
 
   return (
@@ -48,5 +65,93 @@ export default function Signup() {
         Already have an account? <Link to="/login">Sign in</Link>
       </SwitchLink>
     </AuthShell>
+  );
+}
+
+function ButlerSignup({
+  email,
+  password,
+  error,
+  pending,
+  onEmail,
+  onPassword,
+  onSubmit,
+}: {
+  email: string;
+  password: string;
+  error: string | null;
+  pending: boolean;
+  onEmail: (v: string) => void;
+  onPassword: (v: string) => void;
+  onSubmit: (e: FormEvent) => void;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "100dvh",
+        background: "var(--cream)",
+        display: "grid",
+        placeItems: "center",
+        padding: "32px 20px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          display: "grid",
+          gap: 22,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <ButlerSays layout="column" size={140} bubbleMaxWidth={460}>
+            Master has built something rather splendid. Shall we put it on the door?
+          </ButlerSays>
+        </div>
+
+        <p
+          style={{
+            fontSize: 15.5,
+            color: "var(--ink-2)",
+            margin: 0,
+            lineHeight: 1.55,
+            fontWeight: 500,
+            textAlign: "center",
+          }}
+        >
+          Make an account so we can save your work and put your form live. We won't charge you
+          straight away. Don't panic, you cheapskate. There's a 3-day free trial so you can make
+          sure our product doesn't suck.
+        </p>
+
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--hair-2)",
+            borderRadius: 18,
+            boxShadow: "var(--shadow-md)",
+            padding: "26px 28px 24px",
+          }}
+        >
+          <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+            <Field label="Email" type="email" value={email} onChange={onEmail} autoFocus />
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={onPassword}
+              hint="At least 8 characters."
+            />
+            {error && <ErrorText>{error}</ErrorText>}
+            <PrimaryButton disabled={pending}>
+              {pending ? "Creating…" : "Create account"}
+            </PrimaryButton>
+          </form>
+          <SwitchLink>
+            Already have an account? <Link to="/login">Sign in</Link>
+          </SwitchLink>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import type {
   WidgetResponse,
 } from "@warmly/api-spec";
 import { CreateWidgetRequestSchema, SlugSchema, WhatsAppNumberSchema } from "@warmly/api-spec";
+import { ButlerHead, ButlerSays } from "../components/Butler";
 import FormShell from "../components/FormShell";
 import WhatsAppOutput from "../components/WhatsAppOutput";
 import { useMatchesQuery } from "../hooks/useMatchesQuery";
@@ -296,7 +297,68 @@ export default function OperatorConfig() {
     return CreateWidgetRequestSchema.safeParse(draft);
   }, [draft]);
 
+  const numberValid = useMemo(
+    () => WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success,
+    [draft.whatsappNumber],
+  );
+
   const canSave = dirty && validation.success && !saving;
+
+  const [showSplendid, setShowSplendid] = useState(false);
+  const numberValidPrev = useRef(numberValid);
+  const splendidFingerprintRef = useRef<string | null>(null);
+
+  function draftRestFingerprint(d: DraftWidget): string {
+    return JSON.stringify({
+      slug: d.slug,
+      questions: d.questions,
+      messageTemplate: d.messageTemplate,
+      buttonColour: d.buttonColour,
+      buttonPosition: d.buttonPosition,
+      brandingEnabled: d.brandingEnabled,
+    });
+  }
+
+  useEffect(() => {
+    if (numberValid && !numberValidPrev.current) {
+      setShowSplendid(true);
+      splendidFingerprintRef.current = draftRestFingerprint(draft);
+    } else if (!numberValid) {
+      setShowSplendid(false);
+      splendidFingerprintRef.current = null;
+    }
+    numberValidPrev.current = numberValid;
+  }, [numberValid, draft]);
+
+  useEffect(() => {
+    if (!showSplendid || splendidFingerprintRef.current === null) return;
+    if (draftRestFingerprint(draft) !== splendidFingerprintRef.current) {
+      setShowSplendid(false);
+      splendidFingerprintRef.current = null;
+    }
+  }, [draft, showSplendid]);
+
+  const [showLiveMoment, setShowLiveMoment] = useState(false);
+  const wasUnsavedRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    if (wasUnsavedRef.current === null) {
+      wasUnsavedRef.current = existing === null;
+      return;
+    }
+    if (wasUnsavedRef.current && existing !== null) {
+      setShowLiveMoment(true);
+      setShowSplendid(false);
+      wasUnsavedRef.current = false;
+    }
+  }, [existing, loading]);
+
+  useEffect(() => {
+    if (!showLiveMoment) return;
+    const t = window.setTimeout(() => setShowLiveMoment(false), 15000);
+    return () => window.clearTimeout(t);
+  }, [showLiveMoment]);
 
   async function save() {
     if (!validation.success) return;
@@ -408,7 +470,7 @@ export default function OperatorConfig() {
     } else {
       clearPendingDraft();
     }
-    nav("/signup");
+    nav("/signup?from=app");
   }
 
   async function applyPending() {
@@ -463,51 +525,29 @@ export default function OperatorConfig() {
   // type on every parent render.
   function renderActionButtons(stretched: boolean) {
     if (!authed) {
-      // Both buttons trigger the signup flow. Save mirrors the authed Save
-      // visually so users learn what they unlock; Publish sits in the slot
-      // Copy will occupy after auth.
       const enabled = validation.success && !saving;
+      // Tooltip fires only when the disable reason is the missing/invalid
+      // WhatsApp number — for other validation failures the user gets no
+      // Butler hint (silence is honest in those cases).
+      const tooltipFires = !numberValid;
       return (
         <>
-          <button
-            type="button"
+          <UnauthedActionButton
+            label="Publish form"
             onClick={requireSignup}
             disabled={!enabled}
-            style={{
-              height: 40,
-              padding: "0 16px",
-              borderRadius: 12,
-              background: "transparent",
-              border: "1px solid var(--hair)",
-              color: "var(--ink-2)",
-              fontSize: 13.5,
-              fontWeight: 600,
-              opacity: enabled ? 1 : 0.5,
-              cursor: enabled ? "pointer" : "not-allowed",
-              flex: stretched ? 1 : "none",
-            }}
-          >
-            Publish form
-          </button>
-          <button
-            type="button"
+            stretched={stretched}
+            variant="secondary"
+            tooltipFires={tooltipFires}
+          />
+          <UnauthedActionButton
+            label="Save changes"
             onClick={requireSignup}
             disabled={!enabled}
-            style={{
-              height: 40,
-              padding: "0 18px",
-              borderRadius: 12,
-              background: enabled ? "var(--ink)" : "var(--cream-2)",
-              color: enabled ? "var(--cream)" : "var(--muted)",
-              border: "none",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: enabled ? "pointer" : "not-allowed",
-              flex: stretched ? 1 : "none",
-            }}
-          >
-            Save changes
-          </button>
+            stretched={stretched}
+            variant="primary"
+            tooltipFires={tooltipFires}
+          />
         </>
       );
     }
@@ -679,6 +719,48 @@ export default function OperatorConfig() {
           <div style={{ display: "flex", gap: 10 }}>{renderActionButtons(false)}</div>
         )}
       </div>
+
+      {showLiveMoment && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1.5px solid var(--ink)",
+              borderRadius: 14,
+              padding: "12px 14px 12px 12px",
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              boxShadow: "0 6px 20px -14px rgba(26,26,26,0.4)",
+            }}
+          >
+            <ButlerSays layout="row" size={isNarrow ? 64 : 84} bubbleMaxWidth={520}>
+              One's establishment is now ready to receive guests.
+            </ButlerSays>
+            <button
+              type="button"
+              onClick={() => setShowLiveMoment(false)}
+              aria-label="Dismiss"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: "1px solid var(--hair)",
+                background: "transparent",
+                color: "var(--muted)",
+                fontSize: 16,
+                lineHeight: 1,
+                cursor: "pointer",
+                flexShrink: 0,
+                marginLeft: "auto",
+                alignSelf: "flex-start",
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {pendingApply && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
@@ -893,6 +975,8 @@ export default function OperatorConfig() {
             setSlugTaken={setSlugTaken}
             onTogglePause={togglePause}
             isNarrow={isNarrow}
+            numberValid={numberValid}
+            showSplendid={showSplendid}
           />
         )}
         {(!isMobile || mobileTab === "preview") && (
@@ -930,6 +1014,113 @@ export default function OperatorConfig() {
         <PauseModal onCancel={() => setShowPauseModal(false)} onConfirm={confirmPause} />
       )}
     </div>
+  );
+}
+
+// ── UnauthedActionButton ───────────────────────────────────────────────────
+
+function UnauthedActionButton({
+  label,
+  onClick,
+  disabled,
+  stretched,
+  variant,
+  tooltipFires,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled: boolean;
+  stretched: boolean;
+  variant: "primary" | "secondary";
+  tooltipFires: boolean;
+}) {
+  const [hover, setHover] = useState(false);
+  const [tap, setTap] = useState(false);
+  const tapTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (tapTimerRef.current != null) window.clearTimeout(tapTimerRef.current);
+    };
+  }, []);
+  const showTooltip = disabled && tooltipFires && (hover || tap);
+
+  const buttonStyle =
+    variant === "primary"
+      ? {
+          background: disabled ? "var(--cream-2)" : "var(--ink)",
+          color: disabled ? "var(--muted)" : "var(--cream)",
+          border: "none",
+          padding: "0 18px",
+        }
+      : {
+          background: "transparent",
+          border: "1px solid var(--hair)",
+          color: "var(--ink-2)",
+          padding: "0 16px",
+          opacity: disabled ? 0.5 : 1,
+        };
+
+  return (
+    <span
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onTouchStart={() => {
+        if (!disabled) return;
+        setTap(true);
+        if (tapTimerRef.current != null) window.clearTimeout(tapTimerRef.current);
+        tapTimerRef.current = window.setTimeout(() => setTap(false), 2400);
+      }}
+      style={{
+        position: "relative",
+        display: "flex",
+        flex: stretched ? 1 : "none",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          ...buttonStyle,
+          height: 40,
+          width: "100%",
+          borderRadius: 12,
+          fontSize: variant === "primary" ? 14 : 13.5,
+          fontWeight: 600,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        {label}
+      </button>
+      {showTooltip && (
+        <span
+          role="tooltip"
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 10px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "var(--surface)",
+            border: "1.5px solid var(--ink)",
+            borderRadius: 10,
+            padding: "8px 12px",
+            fontSize: 12.5,
+            fontStyle: "italic",
+            color: "var(--ink-2)",
+            fontWeight: 500,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            zIndex: 6,
+            whiteSpace: "nowrap",
+            boxShadow: "0 6px 18px -10px rgba(26,26,26,0.35)",
+          }}
+        >
+          <ButlerHead size={18} />
+          One must enter one's WhatsApp number first, Master.
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -1005,6 +1196,8 @@ function EditColumn({
   setSlugTaken,
   onTogglePause,
   isNarrow,
+  numberValid,
+  showSplendid,
 }: {
   draft: DraftWidget;
   setDraft: (d: DraftWidget | ((prev: DraftWidget) => DraftWidget)) => void;
@@ -1014,9 +1207,15 @@ function EditColumn({
   setSlugTaken: (b: boolean) => void;
   onTogglePause: () => void;
   isNarrow: boolean;
+  numberValid: boolean;
+  showSplendid: boolean;
 }) {
   const slugValid = SlugSchema.safeParse(draft.slug).success;
-  const numberValid = WhatsAppNumberSchema.safeParse(draft.whatsappNumber).success;
+  const butlerCopy = !numberValid
+    ? "Hello Master! Before one does anything, one must insert one's WhatsApp number in this friendly box."
+    : showSplendid
+      ? "Splendid. Now Master may craft a form to greet one's guests properly."
+      : null;
 
   return (
     <div
@@ -1026,6 +1225,21 @@ function EditColumn({
         gap: 16,
       }}
     >
+      {butlerCopy && (
+        <div
+          style={{
+            padding: isNarrow ? "4px 4px 0" : "0",
+          }}
+        >
+          <ButlerSays
+            layout={isNarrow ? "column" : "row"}
+            size={isNarrow ? 72 : 96}
+            bubbleMaxWidth={520}
+          >
+            {butlerCopy}
+          </ButlerSays>
+        </div>
+      )}
       <div
         style={{
           background: "var(--surface)",
