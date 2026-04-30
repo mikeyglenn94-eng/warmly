@@ -21,7 +21,7 @@ export const widgetsTable = pgTable(
     buttonColour: text("button_colour").notNull().default("#25D366"),
     buttonPosition: text("button_position").notNull().default("bottom-right"),
     brandingEnabled: boolean("branding_enabled").notNull().default(true),
-    reggieOnPublicForm: boolean("reggie_on_public_form").notNull().default(true),
+    reggieOnPublicForm: boolean("reggie_on_public_form").notNull().default(false),
     reggieTone: text("reggie_tone").notNull().default("friendly"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,0 +1,1 @@
+ALTER TABLE "widgets" ALTER COLUMN "reggie_on_public_form" SET DEFAULT false;

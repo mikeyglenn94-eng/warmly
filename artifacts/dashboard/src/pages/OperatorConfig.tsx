@@ -69,7 +69,7 @@ const STARTER_BASE: Omit<DraftWidget, "slug"> = {
   buttonColour: "#25D366",
   buttonPosition: "bottom-right",
   brandingEnabled: true,
-  reggieOnPublicForm: true,
+  reggieOnPublicForm: false,
   reggieTone: "friendly",
 };
 
