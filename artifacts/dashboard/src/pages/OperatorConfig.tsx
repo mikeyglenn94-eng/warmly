@@ -1163,10 +1163,12 @@ function UnauthedActionButton({
             color: "var(--ink-2)",
             fontWeight: 500,
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             gap: 8,
             zIndex: 6,
-            whiteSpace: "nowrap",
+            width: "max-content",
+            maxWidth: "min(280px, calc(100vw - 24px))",
+            lineHeight: 1.4,
             boxShadow: "0 6px 18px -10px rgba(26,26,26,0.35)",
           }}
         >

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useMatchesQuery } from "../hooks/useMatchesQuery";
 import WhatsAppGlyph from "./WhatsAppGlyph";
 
 const SHARE_MESSAGE =
@@ -424,6 +425,7 @@ export function ReggieSays({
 }
 
 export function ReggieReferralPlea() {
+  const isNarrow = useMatchesQuery("(max-width: 720px)");
   return (
     <div
       style={{
@@ -436,7 +438,12 @@ export function ReggieReferralPlea() {
         gap: 14,
       }}
     >
-      <ReggieSays layout="row" size={72} pose="pleading" bubbleMaxWidth={520}>
+      <ReggieSays
+        layout={isNarrow ? "column" : "row"}
+        size={isNarrow ? 80 : 72}
+        pose="pleading"
+        bubbleMaxWidth={520}
+      >
         Enjoying my service, Master? One does so love a full house. A kind word in a friend's
         ear would be most appreciated. Master doesn't feed me unless more guests arrive at the
         party.
