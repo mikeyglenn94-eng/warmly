@@ -783,7 +783,12 @@ export default function OperatorConfig() {
               boxShadow: "0 6px 20px -14px rgba(26,26,26,0.4)",
             }}
           >
-            <ReggieSays layout="row" size={isNarrow ? 64 : 84} bubbleMaxWidth={520}>
+            <ReggieSays
+              layout="row"
+              size={isNarrow ? 64 : 84}
+              pose="cheerful"
+              bubbleMaxWidth={520}
+            >
               One's establishment is now ready to receive guests.
             </ReggieSays>
             <button
@@ -1283,6 +1288,7 @@ function EditColumn({
           <ReggieSays
             layout={isNarrow ? "column" : "row"}
             size={isNarrow ? 72 : 96}
+            pose="welcoming"
             bubbleMaxWidth={520}
           >
             {butlerCopy}

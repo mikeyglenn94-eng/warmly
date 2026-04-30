@@ -60,7 +60,7 @@ export default function PublicForm() {
             justifyContent: "center",
           }}
         >
-          <ReggieSays layout="column" size={120} bubbleMaxWidth={400}>
+          <ReggieSays layout="column" size={120} pose="bow" bubbleMaxWidth={400}>
             I do beg Master's pardon, but this establishment appears to be… unavailable.
           </ReggieSays>
         </div>
@@ -140,7 +140,7 @@ function ReggieIntro({ tone }: { tone: ReggieTone }) {
         justifyContent: "center",
       }}
     >
-      <ReggieSays layout="column" size={104} bubbleMaxWidth={420}>
+      <ReggieSays layout="column" size={104} pose="welcoming" bubbleMaxWidth={420}>
         {copy}
       </ReggieSays>
     </div>

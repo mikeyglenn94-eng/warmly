@@ -104,7 +104,7 @@ function ReggieSignup({
         }}
       >
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <ReggieSays layout="column" size={140} bubbleMaxWidth={460}>
+          <ReggieSays layout="column" size={140} pose="presenting" bubbleMaxWidth={460}>
             Reginald Bartholomew Pemberton, at Master's service. Reggie, when one is among
             friends. Master has built something rather splendid. Shall we put it on the door?
           </ReggieSays>
