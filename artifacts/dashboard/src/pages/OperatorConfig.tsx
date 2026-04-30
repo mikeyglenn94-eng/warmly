@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type {
   Answer,
@@ -1091,12 +1091,36 @@ function UnauthedActionButton({
   const [hover, setHover] = useState(false);
   const [tap, setTap] = useState(false);
   const tapTimerRef = useRef<number | null>(null);
+  const tooltipRef = useRef<HTMLSpanElement | null>(null);
+  const [tooltipShift, setTooltipShift] = useState(0);
   useEffect(() => {
     return () => {
       if (tapTimerRef.current != null) window.clearTimeout(tapTimerRef.current);
     };
   }, []);
   const showTooltip = disabled && tooltipFires && (hover || tap);
+
+  // Edge-detect the tooltip after it renders and shift it horizontally so it
+  // never clips a viewport edge. Runs synchronously before paint so there's
+  // no visible flash at the centred-then-shifted position.
+  useLayoutEffect(() => {
+    if (!showTooltip) {
+      setTooltipShift(0);
+      return;
+    }
+    const el = tooltipRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const margin = 8;
+    let shift = 0;
+    if (rect.left < margin) {
+      shift = margin - rect.left;
+    } else if (rect.right > vw - margin) {
+      shift = vw - margin - rect.right;
+    }
+    if (shift !== 0) setTooltipShift(shift);
+  }, [showTooltip]);
 
   const buttonStyle =
     variant === "primary"
@@ -1148,12 +1172,13 @@ function UnauthedActionButton({
       </button>
       {showTooltip && (
         <span
+          ref={tooltipRef}
           role="tooltip"
           style={{
             position: "absolute",
             bottom: "calc(100% + 10px)",
             left: "50%",
-            transform: "translateX(-50%)",
+            transform: `translateX(calc(-50% + ${tooltipShift}px))`,
             background: "var(--surface)",
             border: "1.5px solid var(--ink)",
             borderRadius: 10,
@@ -1167,7 +1192,7 @@ function UnauthedActionButton({
             gap: 8,
             zIndex: 6,
             width: "max-content",
-            maxWidth: "min(280px, calc(100vw - 24px))",
+            maxWidth: "min(280px, calc(100vw - 16px))",
             lineHeight: 1.4,
             boxShadow: "0 6px 18px -10px rgba(26,26,26,0.35)",
           }}
