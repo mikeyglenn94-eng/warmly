@@ -37,6 +37,9 @@ export const SlugSchema = z
     "Slug must be lowercase letters, digits, and hyphens (no leading, trailing, or doubled hyphens)",
   );
 
+export const ReggieToneSchema = z.enum(["cheeky", "friendly", "minimal"]);
+export type ReggieTone = z.infer<typeof ReggieToneSchema>;
+
 export const WidgetConfigSchema = z.object({
   whatsappNumber: WhatsAppNumberSchema,
   questions: z.array(QuestionSchema).min(1).max(5),
@@ -44,6 +47,8 @@ export const WidgetConfigSchema = z.object({
   buttonColour: HexColourSchema.default("#25D366"),
   buttonPosition: ButtonPositionSchema.default("bottom-right"),
   brandingEnabled: z.boolean().default(true),
+  reggieOnPublicForm: z.boolean().default(true),
+  reggieTone: ReggieToneSchema.default("friendly"),
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 

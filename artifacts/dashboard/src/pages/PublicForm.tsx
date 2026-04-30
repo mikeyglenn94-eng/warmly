@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import type { PublicWidgetResponse } from "@warmly/api-spec";
-import { ButlerSays } from "../components/Butler";
+import type { PublicWidgetResponse, ReggieTone } from "@warmly/api-spec";
+import { ReggieSays } from "../components/Reggie";
 import FormShell from "../components/FormShell";
 import { api, ApiError } from "../lib/api";
 import { buildWaUrl, renderMessage, SKIP_FALLBACK_MESSAGE } from "../lib/wa-message";
@@ -60,9 +60,9 @@ export default function PublicForm() {
             justifyContent: "center",
           }}
         >
-          <ButlerSays layout="column" size={120} bubbleMaxWidth={400}>
+          <ReggieSays layout="column" size={120} bubbleMaxWidth={400}>
             I do beg Master's pardon, but this establishment appears to be… unavailable.
-          </ButlerSays>
+          </ReggieSays>
         </div>
       )}
 
@@ -81,19 +81,68 @@ export default function PublicForm() {
       )}
 
       {status === "ok" && config && config.active && (
-        <FormShell
-          questions={config.questions}
-          messageTemplate={config.messageTemplate}
-          brandingEnabled={config.brandingEnabled}
-          onComplete={(picks) => {
-            const message = renderMessage(config.messageTemplate, config.questions, picks);
-            window.location.assign(buildWaUrl(config.whatsappNumber, message));
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 22,
           }}
-          onSkip={() => {
-            window.location.assign(buildWaUrl(config.whatsappNumber, SKIP_FALLBACK_MESSAGE));
-          }}
-        />
+        >
+          {config.reggieOnPublicForm && <ReggieIntro tone={config.reggieTone} />}
+          <FormShell
+            questions={config.questions}
+            messageTemplate={config.messageTemplate}
+            brandingEnabled={config.brandingEnabled}
+            onComplete={(picks) => {
+              const message = renderMessage(config.messageTemplate, config.questions, picks);
+              window.location.assign(buildWaUrl(config.whatsappNumber, message));
+            }}
+            onSkip={() => {
+              window.location.assign(buildWaUrl(config.whatsappNumber, SKIP_FALLBACK_MESSAGE));
+            }}
+          />
+        </div>
       )}
+    </div>
+  );
+}
+
+function ReggieIntro({ tone }: { tone: ReggieTone }) {
+  if (tone === "minimal") {
+    return (
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          fontSize: 14,
+          color: "var(--muted)",
+          textAlign: "center",
+          fontWeight: 500,
+          lineHeight: 1.5,
+        }}
+      >
+        A few quick questions before connecting you. Won't take a moment.
+      </div>
+    );
+  }
+  const copy =
+    tone === "cheeky"
+      ? "Reginald Bartholomew Pemberton, at one's service. The proprietor would like a quick word before one greets them. Shouldn't take a moment, Master."
+      : "Reginald Bartholomew Pemberton, ever at your service. But please, Reggie will do. The proprietor has a few questions before introducing themselves properly.";
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 480,
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <ReggieSays layout="column" size={104} bubbleMaxWidth={420}>
+        {copy}
+      </ReggieSays>
     </div>
   );
 }

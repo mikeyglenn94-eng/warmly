@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 // Placeholder mascot art — single pose, stroke-led ink-line style. Final
-// illustration will replace this. Exports kept small: Butler is the raw SVG,
-// ButlerHead is a tiny head-only variant for inline use (tooltips), and
-// ButlerSays composes the figure with a speech bubble.
+// illustration will replace this. Exports kept small: Reggie is the raw SVG,
+// ReggieHead is a tiny head-only variant for inline use (tooltips), and
+// ReggieSays composes the figure with a speech bubble.
 
-export function Butler({ size = 96 }: { size?: number }) {
+export function Reggie({ size = 96 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -52,7 +52,7 @@ export function Butler({ size = 96 }: { size?: number }) {
   );
 }
 
-export function ButlerHead({ size = 24 }: { size?: number }) {
+export function ReggieHead({ size = 24 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -85,7 +85,7 @@ export function ButlerHead({ size = 24 }: { size?: number }) {
   );
 }
 
-export function ButlerSays({
+export function ReggieSays({
   children,
   layout = "row",
   size = 96,
@@ -107,7 +107,7 @@ export function ButlerSays({
         width: "100%",
       }}
     >
-      <Butler size={size} />
+      <Reggie size={size} />
       <Bubble tail={isRow ? "left" : "top"} maxWidth={bubbleMaxWidth}>
         {children}
       </Bubble>

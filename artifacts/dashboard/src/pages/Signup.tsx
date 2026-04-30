@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { AuthResponse } from "@warmly/api-spec";
-import { ButlerSays } from "../components/Butler";
+import { ReggieSays } from "../components/Reggie";
 import { api, ApiError } from "../lib/api";
 import { setToken } from "../lib/auth";
 import { AuthShell, ErrorText, Field, PrimaryButton, SwitchLink } from "./Login";
@@ -35,7 +35,7 @@ export default function Signup() {
 
   if (fromApp) {
     return (
-      <ButlerSignup
+      <ReggieSignup
         email={email}
         password={password}
         error={error}
@@ -68,7 +68,7 @@ export default function Signup() {
   );
 }
 
-function ButlerSignup({
+function ReggieSignup({
   email,
   password,
   error,
@@ -104,9 +104,10 @@ function ButlerSignup({
         }}
       >
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <ButlerSays layout="column" size={140} bubbleMaxWidth={460}>
-            Master has built something rather splendid. Shall we put it on the door?
-          </ButlerSays>
+          <ReggieSays layout="column" size={140} bubbleMaxWidth={460}>
+            Reginald Bartholomew Pemberton, at Master's service. Reggie, when one is among
+            friends. Master has built something rather splendid. Shall we put it on the door?
+          </ReggieSays>
         </div>
 
         <p

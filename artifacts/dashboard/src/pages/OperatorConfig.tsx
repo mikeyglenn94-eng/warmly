@@ -4,10 +4,11 @@ import type {
   Answer,
   ButtonPosition,
   Question,
+  ReggieTone,
   WidgetResponse,
 } from "@warmly/api-spec";
 import { CreateWidgetRequestSchema, SlugSchema, WhatsAppNumberSchema } from "@warmly/api-spec";
-import { ButlerHead, ButlerSays } from "../components/Butler";
+import { ReggieHead, ReggieSays } from "../components/Reggie";
 import FormShell from "../components/FormShell";
 import WhatsAppOutput from "../components/WhatsAppOutput";
 import { useMatchesQuery } from "../hooks/useMatchesQuery";
@@ -23,6 +24,8 @@ interface DraftWidget {
   buttonColour: string;
   buttonPosition: ButtonPosition;
   brandingEnabled: boolean;
+  reggieOnPublicForm: boolean;
+  reggieTone: ReggieTone;
 }
 
 // Starter template shown on first /app load. The slug is generated per-user
@@ -61,6 +64,8 @@ const STARTER_BASE: Omit<DraftWidget, "slug"> = {
   buttonColour: "#25D366",
   buttonPosition: "bottom-right",
   brandingEnabled: true,
+  reggieOnPublicForm: true,
+  reggieTone: "friendly",
 };
 
 // sessionStorage handoff for the unauthed → /signup → /app flow. The draft
@@ -77,6 +82,8 @@ function fingerprint(d: Omit<DraftWidget, "slug">): string {
     buttonColour: d.buttonColour,
     buttonPosition: d.buttonPosition,
     brandingEnabled: d.brandingEnabled,
+    reggieOnPublicForm: d.reggieOnPublicForm,
+    reggieTone: d.reggieTone,
   });
 }
 
@@ -136,6 +143,8 @@ function fromResponse(w: WidgetResponse): DraftWidget {
     buttonColour: w.buttonColour,
     buttonPosition: w.buttonPosition,
     brandingEnabled: w.brandingEnabled,
+    reggieOnPublicForm: w.reggieOnPublicForm,
+    reggieTone: w.reggieTone,
   };
 }
 
@@ -316,6 +325,8 @@ export default function OperatorConfig() {
       buttonColour: d.buttonColour,
       buttonPosition: d.buttonPosition,
       brandingEnabled: d.brandingEnabled,
+      reggieOnPublicForm: d.reggieOnPublicForm,
+      reggieTone: d.reggieTone,
     });
   }
 
@@ -528,7 +539,7 @@ export default function OperatorConfig() {
       const enabled = validation.success && !saving;
       // Tooltip fires only when the disable reason is the missing/invalid
       // WhatsApp number — for other validation failures the user gets no
-      // Butler hint (silence is honest in those cases).
+      // Reggie hint (silence is honest in those cases).
       const tooltipFires = !numberValid;
       return (
         <>
@@ -734,9 +745,9 @@ export default function OperatorConfig() {
               boxShadow: "0 6px 20px -14px rgba(26,26,26,0.4)",
             }}
           >
-            <ButlerSays layout="row" size={isNarrow ? 64 : 84} bubbleMaxWidth={520}>
+            <ReggieSays layout="row" size={isNarrow ? 64 : 84} bubbleMaxWidth={520}>
               One's establishment is now ready to receive guests.
-            </ButlerSays>
+            </ReggieSays>
             <button
               type="button"
               onClick={() => setShowLiveMoment(false)}
@@ -1116,7 +1127,7 @@ function UnauthedActionButton({
             boxShadow: "0 6px 18px -10px rgba(26,26,26,0.35)",
           }}
         >
-          <ButlerHead size={18} />
+          <ReggieHead size={18} />
           One must enter one's WhatsApp number first, Master.
         </span>
       )}
@@ -1231,13 +1242,13 @@ function EditColumn({
             padding: isNarrow ? "4px 4px 0" : "0",
           }}
         >
-          <ButlerSays
+          <ReggieSays
             layout={isNarrow ? "column" : "row"}
             size={isNarrow ? 72 : 96}
             bubbleMaxWidth={520}
           >
             {butlerCopy}
-          </ButlerSays>
+          </ReggieSays>
         </div>
       )}
       <div
@@ -1420,8 +1431,128 @@ function EditColumn({
         isNarrow={isNarrow}
       />
 
+      <PublicFormSettings
+        reggieOnPublicForm={draft.reggieOnPublicForm}
+        reggieTone={draft.reggieTone}
+        onReggieOnPublicForm={(v) =>
+          setDraft((d) => ({ ...d, reggieOnPublicForm: v }))
+        }
+        onReggieTone={(v) => setDraft((d) => ({ ...d, reggieTone: v }))}
+        isNarrow={isNarrow}
+      />
+
       {/* PAYWALL DISABLED — the Manage billing link was removed here.
           Re-enable by reverting this commit. */}
+    </div>
+  );
+}
+
+function PublicFormSettings({
+  reggieOnPublicForm,
+  reggieTone,
+  onReggieOnPublicForm,
+  onReggieTone,
+  isNarrow,
+}: {
+  reggieOnPublicForm: boolean;
+  reggieTone: ReggieTone;
+  onReggieOnPublicForm: (v: boolean) => void;
+  onReggieTone: (v: ReggieTone) => void;
+  isNarrow: boolean;
+}) {
+  const tones: { id: ReggieTone; label: string; hint: string }[] = [
+    { id: "friendly", label: "Friendly", hint: "Warm, drops some of the formal language." },
+    { id: "cheeky", label: "Cheeky", hint: "Full character, full Master." },
+    { id: "minimal", label: "Minimal", hint: "Short polite intro, no character." },
+  ];
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--hair)",
+        borderRadius: 16,
+        padding: isNarrow ? "18px 16px" : 22,
+      }}
+    >
+      <Label>Public form settings</Label>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 4,
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={reggieOnPublicForm}
+          onChange={(e) => onReggieOnPublicForm(e.target.checked)}
+          style={{ width: 16, height: 16, accentColor: "var(--orange)" }}
+        />
+        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
+          Show Reggie on the public form
+        </span>
+      </label>
+      <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+        Reggie introduces the form to your leads before they answer.
+      </div>
+
+      {reggieOnPublicForm && (
+        <div style={{ marginTop: 18 }}>
+          <Label>Reggie's tone</Label>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isNarrow
+                ? "minmax(0, 1fr)"
+                : "repeat(3, minmax(0, 1fr))",
+              gap: 8,
+            }}
+          >
+            {tones.map((t) => {
+              const on = t.id === reggieTone;
+              return (
+                <label
+                  key={t.id}
+                  style={{
+                    border: on ? "2px solid var(--ink)" : "1px solid var(--hair)",
+                    background: on ? "var(--cream)" : "var(--surface)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="reggieTone"
+                    checked={on}
+                    onChange={() => onReggieTone(t.id)}
+                    style={{
+                      width: 14,
+                      height: 14,
+                      marginTop: 3,
+                      accentColor: "var(--ink)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
+                      {t.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.4 }}>
+                      {t.hint}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

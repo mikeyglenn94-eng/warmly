@@ -6,6 +6,7 @@ import {
   CreateWidgetRequestSchema,
   UpdateWidgetRequestSchema,
   WidgetPatchSchema,
+  type ReggieTone,
   type WidgetResponse,
   type PublicWidgetResponse,
 } from "@warmly/api-spec";
@@ -13,6 +14,10 @@ import { db } from "../db";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
+
+function coerceReggieTone(v: string): ReggieTone {
+  return v === "cheeky" || v === "minimal" || v === "friendly" ? v : "friendly";
+}
 
 function toWidgetResponse(w: Widget): WidgetResponse {
   return {
@@ -25,6 +30,8 @@ function toWidgetResponse(w: Widget): WidgetResponse {
     buttonColour: w.buttonColour,
     buttonPosition: w.buttonPosition === "bottom-left" ? "bottom-left" : "bottom-right",
     brandingEnabled: w.brandingEnabled,
+    reggieOnPublicForm: w.reggieOnPublicForm,
+    reggieTone: coerceReggieTone(w.reggieTone),
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
   };
@@ -39,6 +46,8 @@ function toPublicResponse(w: Widget): PublicWidgetResponse {
     buttonColour: w.buttonColour,
     buttonPosition: w.buttonPosition === "bottom-left" ? "bottom-left" : "bottom-right",
     brandingEnabled: w.brandingEnabled,
+    reggieOnPublicForm: w.reggieOnPublicForm,
+    reggieTone: coerceReggieTone(w.reggieTone),
   };
 }
 
@@ -130,6 +139,8 @@ router.post("/widgets/me", requireAuth, async (req, res) => {
       buttonColour: config.buttonColour,
       buttonPosition: config.buttonPosition,
       brandingEnabled: config.brandingEnabled,
+      reggieOnPublicForm: config.reggieOnPublicForm,
+      reggieTone: config.reggieTone,
     })
     .returning();
   if (!row) {
