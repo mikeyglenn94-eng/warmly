@@ -13,14 +13,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/app" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route
-        path="/app"
-        element={
-          <RequireAuth>
-            <OperatorConfig />
-          </RequireAuth>
-        }
-      />
+      <Route path="/app" element={<OperatorConfig />} />
       <Route
         path="/app/upgrade"
         element={

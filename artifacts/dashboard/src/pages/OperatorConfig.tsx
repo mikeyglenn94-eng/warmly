@@ -11,7 +11,7 @@ import FormShell from "../components/FormShell";
 import WhatsAppOutput from "../components/WhatsAppOutput";
 import { useMatchesQuery } from "../hooks/useMatchesQuery";
 import { api, ApiError } from "../lib/api";
-import { clearToken } from "../lib/auth";
+import { clearToken, getToken } from "../lib/auth";
 import { renderMessage } from "../lib/wa-message";
 
 interface DraftWidget {
@@ -61,6 +61,55 @@ const STARTER_BASE: Omit<DraftWidget, "slug"> = {
   buttonPosition: "bottom-right",
   brandingEnabled: true,
 };
+
+// sessionStorage handoff for the unauthed → /signup → /app flow. The draft
+// is persisted only when meaningfully edited (anything in STARTER_BASE
+// changed; slug is excluded since it's randomly generated per mount and
+// not a "default" the user is opting out of). Cleared on every read.
+const PENDING_DRAFT_KEY = "warmly:pendingDraft";
+
+function fingerprint(d: Omit<DraftWidget, "slug">): string {
+  return JSON.stringify({
+    whatsappNumber: d.whatsappNumber,
+    questions: d.questions,
+    messageTemplate: d.messageTemplate,
+    buttonColour: d.buttonColour,
+    buttonPosition: d.buttonPosition,
+    brandingEnabled: d.brandingEnabled,
+  });
+}
+
+const STARTER_FINGERPRINT = fingerprint(STARTER_BASE);
+
+function isMeaningfullyEdited(d: DraftWidget): boolean {
+  return fingerprint(d) !== STARTER_FINGERPRINT;
+}
+
+function readPendingDraft(): DraftWidget | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as DraftWidget;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingDraft(d: DraftWidget): void {
+  try {
+    sessionStorage.setItem(PENDING_DRAFT_KEY, JSON.stringify(d));
+  } catch {
+    // sessionStorage can throw under privacy modes / quota; nav still proceeds
+  }
+}
+
+function clearPendingDraft(): void {
+  try {
+    sessionStorage.removeItem(PENDING_DRAFT_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 function randomSlug(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -125,6 +174,7 @@ export default function OperatorConfig() {
   // tappable while scrolling.
   const isNarrow = useMatchesQuery("(max-width: 720px)");
 
+  const [authed] = useState(() => getToken() !== null);
   const [existing, setExisting] = useState<WidgetResponse | null>(null);
   const [draft, setDraft] = useState<DraftWidget>(() => buildStarter());
   const [loading, setLoading] = useState(true);
@@ -132,6 +182,7 @@ export default function OperatorConfig() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [slugTaken, setSlugTaken] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pendingApply, setPendingApply] = useState<DraftWidget | null>(null);
   const [previewStep, setPreviewStep] = useState<PreviewStep>("q2");
   // Default to Preview so first-time users see what the form does before
   // editing. Returning users get flipped to Edit once the load completes
@@ -171,20 +222,59 @@ export default function OperatorConfig() {
   }, [loc.search, loc.pathname]);
 
   useEffect(() => {
+    if (!authed) {
+      // Unauthed: skip /widgets/me (it'd trip api.ts's redirect-to-login).
+      // Show starter draft. Save/Publish writes to sessionStorage and routes
+      // to /signup; this same effect re-runs on remount with authed=true.
+      setLoading(false);
+      return;
+    }
     api<WidgetResponse>("/widgets/me", { auth: true })
       .then((res) => {
         setExisting(res);
         setDraft(fromResponse(res));
+        const pending = readPendingDraft();
+        clearPendingDraft();
+        if (pending && isMeaningfullyEdited(pending)) {
+          // Returning user with a pre-signin draft — let them choose.
+          setPendingApply(pending);
+        }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (err instanceof ApiError && err.status === 404) {
-          // No widget yet — keep the starter draft and show the banner.
+          const pending = readPendingDraft();
+          clearPendingDraft();
+          if (!pending || !isMeaningfullyEdited(pending)) return;
+          setDraft(pending);
+          const validated = CreateWidgetRequestSchema.safeParse(pending);
+          if (!validated.success) return;
+          setSaving(true);
+          try {
+            const saved = await api<WidgetResponse>("/widgets/me", {
+              method: "POST",
+              body: validated.data,
+              auth: true,
+            });
+            setExisting(saved);
+            setDraft(fromResponse(saved));
+          } catch (saveErr) {
+            if (saveErr instanceof ApiError && saveErr.status === 409) {
+              if (/slug/i.test(saveErr.message)) setSlugTaken(true);
+              setSaveError(saveErr.message);
+            } else if (saveErr instanceof ApiError) {
+              setSaveError(saveErr.message);
+            } else {
+              setSaveError("Could not save. Try again in a moment.");
+            }
+          } finally {
+            setSaving(false);
+          }
           return;
         }
         // Other errors fall through; saveError covers user-actionable messaging.
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [authed]);
 
   // One-shot tab init: once loading completes, returning users (existing
   // widget on file) jump to Edit. First-time users keep the Preview
@@ -308,6 +398,63 @@ export default function OperatorConfig() {
     nav("/login");
   }
 
+  function signIn() {
+    nav("/login");
+  }
+
+  function requireSignup() {
+    if (validation.success && isMeaningfullyEdited(draft)) {
+      writePendingDraft(draft);
+    } else {
+      clearPendingDraft();
+    }
+    nav("/signup");
+  }
+
+  async function applyPending() {
+    if (!pendingApply) return;
+    const validated = CreateWidgetRequestSchema.safeParse(pendingApply);
+    if (!validated.success) {
+      // Invalid pending draft (e.g. blank WhatsApp number) — load it into
+      // the form so the user can fix and save manually.
+      setDraft(pendingApply);
+      setPendingApply(null);
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    setSlugTaken(false);
+    try {
+      const res = await api<WidgetResponse>("/widgets/me", {
+        method: "PUT",
+        body: validated.data,
+        auth: true,
+      });
+      setExisting(res);
+      setDraft(fromResponse(res));
+      setPendingApply(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        if (/slug/i.test(err.message)) setSlugTaken(true);
+        setSaveError(err.message);
+        // Drop the banner and load pending into the form so the user can
+        // edit the slug and retry via the regular Save button.
+        setDraft(pendingApply);
+        setPendingApply(null);
+      } else if (err instanceof ApiError) {
+        setSaveError(err.message);
+      } else {
+        setSaveError("Could not apply changes.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function discardPending() {
+    setPendingApply(null);
+  }
+
   // Inline helper (not a React component) — returns the Copy/Save action
   // pair as a fragment so it can be dropped into the desktop header
   // (stretched=false) and the mobile fixed bottom bar (stretched=true,
@@ -315,6 +462,55 @@ export default function OperatorConfig() {
   // function rather than a component so React doesn't see a new component
   // type on every parent render.
   function renderActionButtons(stretched: boolean) {
+    if (!authed) {
+      // Both buttons trigger the signup flow. Save mirrors the authed Save
+      // visually so users learn what they unlock; Publish sits in the slot
+      // Copy will occupy after auth.
+      const enabled = validation.success && !saving;
+      return (
+        <>
+          <button
+            type="button"
+            onClick={requireSignup}
+            disabled={!enabled}
+            style={{
+              height: 40,
+              padding: "0 16px",
+              borderRadius: 12,
+              background: "transparent",
+              border: "1px solid var(--hair)",
+              color: "var(--ink-2)",
+              fontSize: 13.5,
+              fontWeight: 600,
+              opacity: enabled ? 1 : 0.5,
+              cursor: enabled ? "pointer" : "not-allowed",
+              flex: stretched ? 1 : "none",
+            }}
+          >
+            Publish form
+          </button>
+          <button
+            type="button"
+            onClick={requireSignup}
+            disabled={!enabled}
+            style={{
+              height: 40,
+              padding: "0 18px",
+              borderRadius: 12,
+              background: enabled ? "var(--ink)" : "var(--cream-2)",
+              color: enabled ? "var(--cream)" : "var(--muted)",
+              border: "none",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: enabled ? "pointer" : "not-allowed",
+              flex: stretched ? 1 : "none",
+            }}
+          >
+            Save changes
+          </button>
+        </>
+      );
+    }
     return (
       <>
         <button
@@ -396,7 +592,7 @@ export default function OperatorConfig() {
         overflowX: "hidden",
       }}
     >
-      <TopBar onLogout={logout} />
+      <TopBar authed={authed} onLogout={logout} onSignIn={signIn} />
 
       {/* Discreet "see it working" link. Lives only on /app — Upgrade and
           PublicForm pages are separate components and never render this. */}
@@ -484,6 +680,66 @@ export default function OperatorConfig() {
         )}
       </div>
 
+      {pendingApply && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <div
+            style={{
+              background: "var(--cream-2)",
+              border: "1px solid var(--hair-2)",
+              borderRadius: 12,
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--ink-2)",
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 200 }}>
+              You've got unsaved changes from before sign in.
+            </span>
+            <button
+              type="button"
+              onClick={discardPending}
+              disabled={saving}
+              style={{
+                height: 32,
+                padding: "0 12px",
+                borderRadius: 8,
+                background: "transparent",
+                border: "1px solid var(--hair)",
+                color: "var(--ink-2)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={applyPending}
+              disabled={saving}
+              style={{
+                height: 32,
+                padding: "0 14px",
+                borderRadius: 8,
+                background: "var(--ink)",
+                color: "var(--cream)",
+                border: "none",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Applying…" : "Apply"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {!existing && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
           <div
@@ -513,7 +769,7 @@ export default function OperatorConfig() {
               Starter template
             </span>
             <span style={{ fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>
-              Edit and save when ready.
+              {authed ? "Edit and save when ready." : "Edit freely. Sign up to publish."}
             </span>
           </div>
         </div>
@@ -632,6 +888,7 @@ export default function OperatorConfig() {
             draft={draft}
             setDraft={setDraft}
             existing={existing}
+            authed={authed}
             slugTaken={slugTaken}
             setSlugTaken={setSlugTaken}
             onTogglePause={togglePause}
@@ -678,7 +935,15 @@ export default function OperatorConfig() {
 
 // ── TopBar ─────────────────────────────────────────────────────────────────
 
-function TopBar({ onLogout }: { onLogout: () => void }) {
+function TopBar({
+  authed,
+  onLogout,
+  onSignIn,
+}: {
+  authed: boolean;
+  onLogout: () => void;
+  onSignIn: () => void;
+}) {
   return (
     <div
       style={{
@@ -714,7 +979,7 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
       <div style={{ flex: 1 }} />
       <button
         type="button"
-        onClick={onLogout}
+        onClick={authed ? onLogout : onSignIn}
         style={{
           background: "transparent",
           border: "none",
@@ -723,7 +988,7 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
           fontWeight: 500,
         }}
       >
-        Sign out
+        {authed ? "Sign out" : "Sign in"}
       </button>
     </div>
   );
@@ -735,6 +1000,7 @@ function EditColumn({
   draft,
   setDraft,
   existing,
+  authed,
   slugTaken,
   setSlugTaken,
   onTogglePause,
@@ -743,6 +1009,7 @@ function EditColumn({
   draft: DraftWidget;
   setDraft: (d: DraftWidget | ((prev: DraftWidget) => DraftWidget)) => void;
   existing: WidgetResponse | null;
+  authed: boolean;
   slugTaken: boolean;
   setSlugTaken: (b: boolean) => void;
   onTogglePause: () => void;
@@ -821,15 +1088,20 @@ function EditColumn({
                 width: 8,
                 height: 8,
                 borderRadius: 99,
-                background: existing?.active === false ? "var(--muted-2)" : "var(--green)",
+                background:
+                  !authed || existing?.active === false ? "var(--muted-2)" : "var(--green)",
                 boxShadow:
-                  existing?.active === false
+                  !authed || existing?.active === false
                     ? "none"
                     : "0 0 0 3px rgba(37,211,102,0.18)",
               }}
             />
             <span style={{ fontSize: 13.5, fontWeight: 500 }}>
-              {existing?.active === false ? "Paused" : "Live"}
+              {!authed
+                ? "Not published yet"
+                : existing?.active === false
+                  ? "Paused"
+                  : "Live"}
             </span>
             <span style={{ flex: 1 }} />
             {existing && (
