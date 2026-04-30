@@ -8,7 +8,12 @@ import type {
   WidgetResponse,
 } from "@warmly/api-spec";
 import { CreateWidgetRequestSchema, SlugSchema, WhatsAppNumberSchema } from "@warmly/api-spec";
-import { ReggieHead, ReggieSays } from "../components/Reggie";
+import {
+  ReggieBreakthrough,
+  ReggieHead,
+  ReggieReferralPlea,
+  ReggieSays,
+} from "../components/Reggie";
 import FormShell from "../components/FormShell";
 import WhatsAppOutput from "../components/WhatsAppOutput";
 import { useMatchesQuery } from "../hooks/useMatchesQuery";
@@ -114,6 +119,24 @@ function writePendingDraft(d: DraftWidget): void {
 function clearPendingDraft(): void {
   try {
     sessionStorage.removeItem(PENDING_DRAFT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+const REFERRAL_MOMENT_KEY = "warmly:hasSeenReferralMoment";
+
+function hasSeenReferralMoment(): boolean {
+  try {
+    return localStorage.getItem(REFERRAL_MOMENT_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function markReferralMomentSeen(): void {
+  try {
+    localStorage.setItem(REFERRAL_MOMENT_KEY, "true");
   } catch {
     // ignore
   }
@@ -350,6 +373,7 @@ export default function OperatorConfig() {
   }, [draft, showSplendid]);
 
   const [showLiveMoment, setShowLiveMoment] = useState(false);
+  const [showBreakthrough, setShowBreakthrough] = useState(false);
   const wasUnsavedRef = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -361,9 +385,17 @@ export default function OperatorConfig() {
     if (wasUnsavedRef.current && existing !== null) {
       setShowLiveMoment(true);
       setShowSplendid(false);
+      if (!hasSeenReferralMoment()) {
+        setShowBreakthrough(true);
+      }
       wasUnsavedRef.current = false;
     }
   }, [existing, loading]);
+
+  function dismissBreakthrough() {
+    markReferralMomentSeen();
+    setShowBreakthrough(false);
+  }
 
   useEffect(() => {
     if (!showLiveMoment) return;
@@ -730,6 +762,12 @@ export default function OperatorConfig() {
           <div style={{ display: "flex", gap: 10 }}>{renderActionButtons(false)}</div>
         )}
       </div>
+
+      {showBreakthrough && (
+        <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
+          <ReggieBreakthrough onDismiss={dismissBreakthrough} />
+        </div>
+      )}
 
       {showLiveMoment && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
@@ -1440,6 +1478,8 @@ function EditColumn({
         onReggieTone={(v) => setDraft((d) => ({ ...d, reggieTone: v }))}
         isNarrow={isNarrow}
       />
+
+      {authed && existing && <ReggieReferralPlea />}
 
       {/* PAYWALL DISABLED — the Manage billing link was removed here.
           Re-enable by reverting this commit. */}
