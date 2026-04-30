@@ -56,10 +56,22 @@ export function Reggie({
 
   return (
     <svg
-      width={size}
-      height={Math.round((size * 400) / 320)}
       viewBox="0 0 320 400"
-      style={{ display: "block", flexShrink: 0 }}
+      style={{
+        display: "block",
+        flexShrink: 0,
+        // Sizing via CSS rather than width/height attributes so the explicit
+        // size always wins (attributes can be treated as advisory in some
+        // intrinsic-sizing contexts, which previously caused the SVG to fall
+        // back to its 320×400 viewBox dimensions on mobile and clip the
+        // head above the viewport). maxWidth: 100% + height: auto means
+        // the SVG never overflows its parent and shrinks proportionally
+        // via the viewBox aspect ratio.
+        width: size,
+        maxWidth: "100%",
+        height: "auto",
+        aspectRatio: "320 / 400",
+      }}
       aria-hidden="true"
     >
       <defs>
