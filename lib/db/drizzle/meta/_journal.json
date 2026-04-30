@@ -8,6 +8,13 @@
       "when": 1777536271186,
       "tag": "0000_reflective_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777538206035,
+      "tag": "0001_ensure_users_stripe_columns",
+      "breakpoints": true
     }
   ]
 }

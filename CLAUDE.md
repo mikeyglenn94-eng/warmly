@@ -71,6 +71,8 @@ Production schema changes happen by **deploying code**, never by running a comma
 
 **Baseline migration (`0000_reflective_red_wolf.sql`)** is hand-edited to be idempotent (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, FK in a `DO $$ … EXCEPTION WHEN duplicate_object` block). This was a one-time bootstrap so the first deploy against the existing prod schema is a safe no-op while still creating everything from scratch on a fresh DB. **Future migrations are generated normally and should not be hand-edited for idempotency.**
 
+⚠ **Idempotent baseline gotcha (cost us a prod incident on 2026-04-30):** `CREATE TABLE IF NOT EXISTS` is a no-op for *the whole table* — it does not reconcile column-by-column. If pre-baseline environments had a partial schema (e.g. a `users` table missing columns that drift in via prior `db push` calls), the baseline silently leaves them partial. The fix is a hand-authored remediation migration with `ALTER TABLE … ADD COLUMN IF NOT EXISTS` (see `0001_ensure_users_stripe_columns.sql`). When authoring one by hand: write the SQL file, append an entry to `meta/_journal.json`, and create a matching `meta/NNNN_snapshot.json` (copy the previous snapshot, regenerate `id`, point `prevId` at the previous snapshot's `id`).
+
 drizzle-kit tracks applied migrations in a `__drizzle_migrations__` table (auto-created on first `migrate` run). Each migration runs in a transaction, so a failed statement rolls back cleanly.
 
 ## Deployment
