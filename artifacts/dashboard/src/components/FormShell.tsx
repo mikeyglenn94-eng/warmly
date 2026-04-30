@@ -169,18 +169,20 @@ export default function FormShell({
         {isReview ? "Ready to send" : "A few quick questions"}
       </div>
 
-      <h1
-        style={{
-          fontSize: "clamp(26px, 5vw, 34px)",
-          fontWeight: 700,
-          margin: 0,
-          letterSpacing: "-0.025em",
-          lineHeight: 1.1,
-          color: "var(--ink)",
-        }}
-      >
-        {isReview ? "All set." : "Hey, glad you're here."}
-      </h1>
+      {isReview && (
+        <h1
+          style={{
+            fontSize: "clamp(26px, 5vw, 34px)",
+            fontWeight: 700,
+            margin: 0,
+            letterSpacing: "-0.025em",
+            lineHeight: 1.1,
+            color: "var(--ink)",
+          }}
+        >
+          All set.
+        </h1>
+      )}
       <p
         style={{
           fontSize: "clamp(14px, 2vw, 16px)",
