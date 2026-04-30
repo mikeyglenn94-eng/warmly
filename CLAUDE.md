@@ -103,6 +103,8 @@ Ownership leaks are avoided by returning 404 (not 403) on widget routes when the
 
 ## Billing
 
+> ⚠️ Currently disabled. The entire paywall is off pending the Stripe webhook fix. Copy below describes the eventual model.
+
 **Free vs paid:** building, editing, and previewing the form are free. The public form at `/m/:slug` only serves once the operator's subscription is active (£8/month). Server-side, `GET /widgets/public/:slug` joins `users` and returns `402` if `isPaid(user) === false`. Client-side, the dashboard fetches `/me` on `/app` mount and shows a "preview mode" banner + redirects "Copy public link" to `/app/upgrade` until the user pays.
 
 **Source of truth for billing state:** Stripe webhooks. `subscriptionStatus` and `planActiveUntil` on `users` are written only by `/billing/webhook` in response to `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`. The `?upgrade=success` query param is just a UX hint; the dashboard refetches `/me` a couple of times after that lands so the banner clears once the webhook arrives.

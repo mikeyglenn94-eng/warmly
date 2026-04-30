@@ -5,7 +5,9 @@ import Signup from "./pages/Signup";
 import Admin from "./pages/Admin";
 import OperatorConfig from "./pages/OperatorConfig";
 import PublicForm from "./pages/PublicForm";
-import Upgrade from "./pages/Upgrade";
+// Upgrade page kept as breadcrumb code in src/pages/Upgrade.tsx but not
+// routed while the paywall is disabled — /app/upgrade redirects to /app.
+// Re-wire the route when re-enabling the paywall.
 
 export default function App() {
   return (
@@ -14,14 +16,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/app" element={<OperatorConfig />} />
-      <Route
-        path="/app/upgrade"
-        element={
-          <RequireAuth>
-            <Upgrade />
-          </RequireAuth>
-        }
-      />
+      <Route path="/app/upgrade" element={<Navigate to="/app" replace />} />
       <Route
         path="/admin"
         element={
