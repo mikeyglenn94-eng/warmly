@@ -54,7 +54,24 @@ Per-package:
 - `pnpm --filter @warmly/api-server build` — chains the dashboard build then copies its `dist/` into `artifacts/api-server/public/`. Used for production deploys (Replit, etc.) where api-server serves the SPA and the API from one origin.
 - `pnpm --filter @warmly/dashboard dev` — start the Vite dev server on `:5173`. Reads `VITE_API_URL` from `.env` (set to `http://localhost:3000` in `.env.example` for cross-origin local dev).
 - `pnpm --filter @warmly/dashboard build` — typecheck then production Vite build.
-- `pnpm --filter @warmly/db push` — `drizzle-kit push` against `DATABASE_URL`. Reads from process env at invocation time.
+- `pnpm db:generate` — generate a SQL migration from current schema diff. Output goes to `lib/db/drizzle/`. Does not connect to a database.
+- `pnpm db:migrate` — apply pending migrations against `DATABASE_URL`. Used by Replit's deploy build, not run by hand.
+- `pnpm db:push` — `drizzle-kit push`. **Local dev only.** Never run against prod.
+
+## Migrations
+
+Production schema changes happen by **deploying code**, never by running a command against prod. The flow:
+
+1. Edit schema files in `lib/db/src/schema/`.
+2. `pnpm db:generate` — creates a new `lib/db/drizzle/NNNN_*.sql` file plus a `meta/` snapshot update. Inspect the SQL.
+3. Commit the schema change and the generated SQL together.
+4. Push to `main`. Replit's deploy build runs `pnpm db:migrate` before starting the server, so the migration applies against prod's `DATABASE_URL` (set in Replit's deployment env). Build/migrate failure aborts the deploy — the old server keeps running.
+
+**`pnpm db:push` stays available for local-only WIP iteration** where generating a migration for every fiddle is overkill. Never push against prod — that's the failure mode this workflow exists to eliminate.
+
+**Baseline migration (`0000_reflective_red_wolf.sql`)** is hand-edited to be idempotent (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, FK in a `DO $$ … EXCEPTION WHEN duplicate_object` block). This was a one-time bootstrap so the first deploy against the existing prod schema is a safe no-op while still creating everything from scratch on a fresh DB. **Future migrations are generated normally and should not be hand-edited for idempotency.**
+
+drizzle-kit tracks applied migrations in a `__drizzle_migrations__` table (auto-created on first `migrate` run). Each migration runs in a transaction, so a failed statement rolls back cleanly.
 
 ## Deployment
 

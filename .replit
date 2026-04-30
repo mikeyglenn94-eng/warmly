@@ -4,7 +4,7 @@ entrypoint = "artifacts/api-server/src/index.ts"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["pnpm", "run", "build"]
+build = ["sh", "-c", "pnpm run build && pnpm --filter @warmly/db run migrate"]
 run = ["pnpm", "run", "start"]
 
 [agent]

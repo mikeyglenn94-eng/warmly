@@ -7,7 +7,10 @@
     "build": "pnpm --filter @warmly/api-server run build",
     "start": "pnpm --filter @warmly/api-server start",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --if-present run typecheck",
+    "db:generate": "pnpm --filter @warmly/db run generate",
+    "db:migrate": "pnpm --filter @warmly/db run migrate",
+    "db:push": "pnpm --filter @warmly/db run push"
   },
   "devDependencies": {
     "typescript": "~5.9.2",
