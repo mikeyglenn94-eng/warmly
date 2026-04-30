@@ -769,7 +769,7 @@ export default function OperatorConfig() {
         </div>
       )}
 
-      {showLiveMoment && (
+      {showLiveMoment && !showBreakthrough && (
         <div style={{ padding: isMobile ? "0 16px 8px" : "0 28px 8px" }}>
           <div
             style={{
