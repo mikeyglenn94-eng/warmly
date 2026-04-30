@@ -120,9 +120,8 @@ function ReggieSignup({
             textAlign: "center",
           }}
         >
-          Make an account so we can save your work and put your form live. We won't charge you
-          straight away. Don't panic, you cheapskate. There's a 3-day free trial so you can make
-          sure our product doesn't suck.
+          Make an account so we can save your work and put your form live. Don't worry you
+          cheapskate, it's free.
         </p>
 
         <div
