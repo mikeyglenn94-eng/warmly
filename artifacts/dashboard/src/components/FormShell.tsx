@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Answer, Question } from "@warmly/api-spec";
 import { renderMessage } from "../lib/wa-message";
+import { WarmlyBadge, WarmlyReviewCard } from "./WarmlyAttribution";
 import WhatsAppGlyph from "./WhatsAppGlyph";
 
 // How long the highlighted answer state shows before the form auto-advances.
@@ -144,29 +145,40 @@ export default function FormShell({
     >
       <div
         style={{
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          gap: 6,
-          background: isReview ? "rgba(37, 211, 102, 0.18)" : "var(--blue)",
-          color: isReview ? "var(--green-d)" : "var(--blue-d)",
-          padding: "5px 11px",
-          borderRadius: 999,
-          fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: "0.10em",
-          textTransform: "uppercase",
+          justifyContent: "space-between",
+          gap: 12,
           marginBottom: 16,
+          flexWrap: "wrap",
         }}
       >
-        <span
+        <div
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: 99,
-            background: isReview ? "var(--green-d)" : "var(--blue-d)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: isReview ? "rgba(37, 211, 102, 0.18)" : "var(--blue)",
+            color: isReview ? "var(--green-d)" : "var(--blue-d)",
+            padding: "5px 11px",
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: "0.10em",
+            textTransform: "uppercase",
           }}
-        />
-        {isReview ? "Ready to send" : "A few quick questions"}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              background: isReview ? "var(--green-d)" : "var(--blue-d)",
+            }}
+          />
+          {isReview ? "Ready to send" : "A few quick questions"}
+        </div>
+        <WarmlyBadge />
       </div>
 
       {isReview && (
@@ -319,12 +331,14 @@ export default function FormShell({
         </div>
       )}
 
+      {isReview && <WarmlyReviewCard />}
+
       {isReview && (
         <button
           type="button"
           onClick={submit}
           style={{
-            marginTop: 22,
+            marginTop: 16,
             width: "100%",
             background: "var(--green)",
             color: "#fff",
@@ -382,50 +396,25 @@ export default function FormShell({
       )}
 
       {onSkip && (
-        <div style={{ textAlign: "center", marginTop: 14 }}>
+        <div style={{ textAlign: "center", marginTop: 8 }}>
           <button
             type="button"
             onClick={onSkip}
             style={{
               background: "transparent",
               border: "none",
-              fontSize: 13,
+              fontSize: 16,
               color: "var(--muted)",
               textDecoration: "underline",
-              textUnderlineOffset: 3,
+              textUnderlineOffset: 4,
               cursor: "pointer",
-              padding: 4,
+              padding: "14px 16px",
+              minHeight: 44,
             }}
           >
             Skip the questions, just message
           </button>
         </div>
-      )}
-
-      {brandingEnabled && (
-        <a
-          href="https://warmly.platespinner.studio"
-          target="_blank"
-          rel="noopener noreferrer"
-          onMouseEnter={(e) => {
-            e.currentTarget.style.textDecoration = "underline";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.textDecoration = "none";
-          }}
-          style={{
-            display: "block",
-            textAlign: "center",
-            marginTop: 16,
-            fontSize: 11,
-            color: "var(--muted-2)",
-            letterSpacing: "0.04em",
-            textDecoration: "none",
-            textUnderlineOffset: 3,
-          }}
-        >
-          Want this for your business? warmly.platespinner.studio
-        </a>
       )}
     </div>
   );

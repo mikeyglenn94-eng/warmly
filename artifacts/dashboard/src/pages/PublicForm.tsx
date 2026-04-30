@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { PublicWidgetResponse, ReggieTone } from "@warmly/api-spec";
 import { ReggieSays } from "../components/Reggie";
+import { WarmlyBadge } from "../components/WarmlyAttribution";
 import FormShell from "../components/FormShell";
 import { api, ApiError } from "../lib/api";
 import { buildWaUrl, renderMessage, SKIP_FALLBACK_MESSAGE } from "../lib/wa-message";
@@ -55,14 +56,19 @@ export default function PublicForm() {
             border: "1px solid var(--hair-2)",
             borderRadius: 20,
             boxShadow: "var(--shadow-md)",
-            padding: "28px 24px 28px",
+            padding: "20px 24px 28px",
             display: "flex",
-            justifyContent: "center",
+            flexDirection: "column",
           }}
         >
-          <ReggieSays layout="column" size={120} pose="bow" bubbleMaxWidth={400}>
-            I do beg Master's pardon, but this establishment appears to be… unavailable.
-          </ReggieSays>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <WarmlyBadge />
+          </div>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <ReggieSays layout="column" size={120} pose="bow" bubbleMaxWidth={400}>
+              I do beg Master's pardon, but this establishment appears to be… unavailable.
+            </ReggieSays>
+          </div>
         </div>
       )}
 
