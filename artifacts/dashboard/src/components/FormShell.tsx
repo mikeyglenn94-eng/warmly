@@ -331,14 +331,12 @@ export default function FormShell({
         </div>
       )}
 
-      {isReview && <WarmlyReviewCard />}
-
       {isReview && (
         <button
           type="button"
           onClick={submit}
           style={{
-            marginTop: 16,
+            marginTop: 22,
             width: "100%",
             background: "var(--green)",
             color: "#fff",
@@ -357,7 +355,7 @@ export default function FormShell({
           }}
         >
           <WhatsAppGlyph size={20} color="#fff" />
-          Open WhatsApp
+          Send on WhatsApp
         </button>
       )}
 
@@ -375,6 +373,8 @@ export default function FormShell({
       >
         Your message will be ready, just hit send.
       </div>
+
+      {isReview && <WarmlyReviewCard />}
 
       {isReview && !isPreview && (
         <div style={{ textAlign: "center", marginTop: 14 }}>

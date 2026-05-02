@@ -1,5 +1,4 @@
 import { useMatchesQuery } from "../hooks/useMatchesQuery";
-import { ReggieHead } from "./Reggie";
 
 // Permanent (non-operator-controlled) Warmly attribution. Two surfaces:
 // WarmlyBadge — small persistent top-right badge inside every form-card
@@ -81,9 +80,7 @@ export function WarmlyReviewCard() {
         e.currentTarget.style.borderColor = "var(--hair)";
       }}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
+        display: "block",
         background: "var(--cream)",
         border: "1px solid var(--hair)",
         borderRadius: 12,
@@ -93,10 +90,9 @@ export function WarmlyReviewCard() {
         transition: "background .15s, border-color .15s",
       }}
     >
-      <ReggieHead size={36} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 500 }}>
-          Like the look of this?
+          Found this useful?
         </span>
         <span
           style={{
